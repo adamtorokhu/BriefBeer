@@ -412,6 +412,44 @@ body {
   z-index: 1;
 }
 
+/* Figma Prototype Gallery */
+.prototype-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.prototype-image-wrapper {
+  background: var(--bg-cream);
+  border-radius: 16px;
+  padding: 1rem;
+  box-shadow: 
+    0 4px 12px var(--shadow-soft),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  border-left: 4px solid var(--beer-gold);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.prototype-image-wrapper:hover {
+  transform: translateY(-4px);
+  box-shadow: 
+    0 8px 24px var(--shadow-medium),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.prototype-image {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 1;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .beer-briefed-doc-page {
@@ -464,5 +502,10 @@ body {
 
   .concept-subsection {
     padding: 1.25rem;
+  }
+
+  .prototype-gallery {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
   }
 }
