@@ -1,24 +1,445 @@
-body {
-  font-family: sans-serif;
-  margin: auto;
-  max-width: 1280px;
+/* Beer color variables */
+:root {
+  --beer-amber: #FF8C00;
+  --beer-gold: #FFA500;
+  --beer-dark: #D2691E;
+  --beer-foam: #FFF8DC;
+  --beer-light: #FFE4B5;
+  --beer-bubble: rgba(255, 255, 255, 0.6);
 }
 
-.navbar {
-  background-color: #313236;
-  border-radius: 2px;
-  max-width: 800px;
+.beer-briefed-doc-page {
+  min-height: 100vh;
+  background: linear-gradient(
+    180deg,
+    #1a0f00 0%,
+    #2d1b0e 20%,
+    #4a2c1a 40%,
+    #6b3e1f 60%,
+    #8b4e24 80%,
+    #a85d2a 100%
+  );
+  padding-top: 40px;
+  position: relative;
+  z-index: 1;
+  overflow-x: hidden;
 }
 
-.navbar a {
-  color: #aaa;
+/* Floating bubbles animation - multiple layers for depth */
+.beer-briefed-doc-page::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.25) 2px, transparent 2px),
+    radial-gradient(circle at 40% 80%, rgba(255, 255, 255, 0.2) 1.5px, transparent 1.5px),
+    radial-gradient(circle at 60% 30%, rgba(255, 255, 255, 0.3) 2.5px, transparent 2.5px),
+    radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.15) 1px, transparent 1px),
+    radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.2) 3px, transparent 3px);
+  background-size: 150px 150px, 200px 200px, 180px 180px, 120px 120px, 250px 250px;
+  background-position: 0 0, 50px 50px, 100px 100px, 150px 150px, 200px 200px;
+  animation: bubbleRise 12s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.beer-briefed-doc-page::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image:
+    radial-gradient(circle at 30% 60%, rgba(255, 255, 255, 0.2) 1.8px, transparent 1.8px),
+    radial-gradient(circle at 70% 40%, rgba(255, 255, 255, 0.25) 2.2px, transparent 2.2px),
+    radial-gradient(circle at 50% 90%, rgba(255, 255, 255, 0.15) 1.2px, transparent 1.2px);
+  background-size: 180px 180px, 220px 220px, 160px 160px;
+  background-position: 30px 30px, 80px 80px, 130px 130px;
+  animation: bubbleRise 18s linear infinite reverse;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes bubbleRise {
+  0% {
+    transform: translateY(100vh) translateX(0) scale(0.8);
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(50vh) translateX(20px) scale(1);
+    opacity: 1;
+  }
+  95% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateY(-10vh) translateX(40px) scale(1.2);
+    opacity: 0;
+  }
+}
+
+.doc-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 3rem 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+.doc-header {
+  margin-bottom: 3rem;
+  text-align: center;
+}
+
+.doc-header h1 {
+  font-size: 3.5rem;
+  color: var(--beer-foam);
+  margin-bottom: 0.5rem;
+  text-shadow:
+    0 0 20px rgba(255, 248, 220, 0.8),
+    0 0 40px rgba(255, 235, 180, 0.6),
+    0 0 60px rgba(255, 215, 0, 0.4),
+    2px 2px 8px rgba(0, 0, 0, 0.7),
+    -1px -1px 2px rgba(139, 69, 19, 0.3);
+  font-weight: 700;
+  letter-spacing: 2px;
+  position: relative;
   display: inline-block;
-  font-size: 15px;
-  padding: 10px;
-  text-decoration: none;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
 }
 
-.navbar a:hover {
-  color: #ffffff;
+.doc-header h1::after {
+  content: '🍺';
+  display: inline-block;
+  margin-left: 15px;
+  animation: beerTilt 2s ease-in-out infinite;
+  transform-origin: center bottom;
 }
 
+@keyframes beerTilt {
+  0%, 100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(5deg);
+  }
+}
+
+.doc-subtitle {
+  font-size: 1.2rem;
+  color: var(--beer-light);
+  font-weight: 300;
+  text-shadow: 
+    0 0 10px rgba(255, 248, 220, 0.6),
+    0 0 20px rgba(255, 235, 180, 0.4),
+    1px 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.doc-content {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 248, 220, 0.95) 0%,
+    rgba(255, 235, 180, 0.9) 8%,
+    rgba(255, 218, 140, 0.85) 15%,
+    rgba(255, 200, 100, 0.9) 25%,
+    rgba(255, 180, 80, 0.95) 50%,
+    rgba(255, 160, 60, 0.98) 75%,
+    rgba(255, 140, 40, 1) 100%
+  );
+  padding: 3rem;
+  border-radius: 16px 16px 8px 8px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    inset 0 2px 10px rgba(255, 255, 255, 0.3),
+    inset 0 -2px 10px rgba(139, 69, 19, 0.3);
+  border: 3px solid rgba(139, 69, 19, 0.4);
+  border-top: 8px solid rgba(255, 248, 220, 0.9);
+  position: relative;
+  overflow: hidden;
+  /* Beer glass effect */
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.15) 2px, transparent 2px),
+    radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.12) 1.5px, transparent 1.5px),
+    radial-gradient(circle at 50% 60%, rgba(255, 255, 255, 0.18) 2.5px, transparent 2.5px),
+    radial-gradient(circle at 70% 30%, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    radial-gradient(circle at 90% 80%, rgba(255, 255, 255, 0.14) 2px, transparent 2px);
+  background-size: 80px 80px, 100px 100px, 120px 120px, 90px 90px, 110px 110px;
+  animation: beerBubbles 8s ease-in-out infinite;
+}
+
+@keyframes beerBubbles {
+  0%, 100% {
+    background-position: 0 0, 20px 20px, 40px 40px, 60px 60px, 80px 80px;
+  }
+  50% {
+    background-position: 10px 10px, 30px 30px, 50px 50px, 70px 70px, 90px 90px;
+  }
+}
+
+/* Foam effect at top of content - realistic beer foam */
+.doc-content::before {
+  content: '';
+  position: absolute;
+  top: -15px;
+  left: -5px;
+  right: -5px;
+  height: 50px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 250, 240, 0.9) 20%,
+    rgba(255, 248, 220, 0.85) 40%,
+    rgba(255, 245, 200, 0.7) 60%,
+    rgba(255, 240, 180, 0.5) 80%,
+    transparent 100%
+  );
+  border-radius: 50% 50% 20px 20px / 60% 60% 15px 15px;
+  animation: foamBubble 4s ease-in-out infinite;
+  box-shadow:
+    inset 0 -5px 15px rgba(255, 255, 255, 0.5),
+    0 5px 20px rgba(255, 248, 220, 0.4);
+  /* Foam bubbles */
+  background-image:
+    radial-gradient(circle at 15% 30%, rgba(255, 255, 255, 0.8) 3px, transparent 3px),
+    radial-gradient(circle at 35% 50%, rgba(255, 255, 255, 0.7) 2px, transparent 2px),
+    radial-gradient(circle at 55% 25%, rgba(255, 255, 255, 0.9) 4px, transparent 4px),
+    radial-gradient(circle at 75% 45%, rgba(255, 255, 255, 0.6) 2.5px, transparent 2.5px),
+    radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.8) 3.5px, transparent 3.5px);
+  background-size: 40px 40px, 50px 50px, 45px 45px, 55px 55px, 48px 48px;
+}
+
+.doc-content::after {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  height: 35px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 248, 220, 0.4) 50%,
+    transparent 100%
+  );
+  border-radius: 50% 50% 10px 10px / 40% 40% 8px 8px;
+  animation: foamBubble 3s ease-in-out infinite reverse;
+  pointer-events: none;
+}
+
+@keyframes foamBubble {
+  0%, 100% {
+    transform: translateY(0) scaleX(1);
+    opacity: 0.9;
+  }
+  25% {
+    transform: translateY(-2px) scaleX(1.02);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-4px) scaleX(0.98);
+    opacity: 0.95;
+  }
+  75% {
+    transform: translateY(-2px) scaleX(1.01);
+    opacity: 1;
+  }
+}
+
+.doc-section {
+  margin-bottom: 3rem;
+}
+
+.doc-section:last-child {
+  margin-bottom: 0;
+}
+
+.doc-section h2 {
+  font-size: 2rem;
+  color: var(--beer-foam);
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 3px solid rgba(255, 200, 100, 0.6);
+  border-image: linear-gradient(90deg, 
+    transparent 0%,
+    rgba(255, 235, 180, 0.8) 20%,
+    rgba(255, 200, 100, 0.9) 50%,
+    rgba(255, 235, 180, 0.8) 80%,
+    transparent 100%
+  ) 1;
+  text-shadow:
+    0 0 12px rgba(255, 248, 220, 0.7),
+    0 0 24px rgba(255, 235, 180, 0.5),
+    1px 1px 4px rgba(0, 0, 0, 0.6);
+  position: relative;
+}
+
+.doc-section h2::before {
+  content: '🍻';
+  margin-right: 10px;
+}
+
+.doc-description {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: rgba(255, 248, 220, 0.95);
+  text-align: justify;
+  text-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 5px rgba(255, 235, 180, 0.3);
+}
+
+.team-members {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.team-member {
+  background: linear-gradient(135deg,
+    rgba(255, 248, 220, 0.25) 0%,
+    rgba(255, 235, 180, 0.2) 50%,
+    rgba(255, 200, 100, 0.15) 100%);
+  padding: 1rem 2rem;
+  border-radius: 20px;
+  border: 2px solid rgba(255, 200, 100, 0.4);
+  transition: all 0.3s ease;
+  box-shadow: 
+    0 4px 15px rgba(0, 0, 0, 0.3),
+    inset 0 1px 3px rgba(255, 255, 255, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.team-member::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+  animation: bubbleMove 15s linear infinite;
+  pointer-events: none;
+}
+
+.team-member:hover {
+  background: linear-gradient(135deg,
+    rgba(255, 248, 220, 0.35) 0%,
+    rgba(255, 235, 180, 0.3) 50%,
+    rgba(255, 200, 100, 0.25) 100%);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow:
+    0 8px 25px rgba(255, 200, 100, 0.4),
+    0 4px 10px rgba(0, 0, 0, 0.4),
+    inset 0 2px 5px rgba(255, 255, 255, 0.4);
+  border-color: rgba(255, 235, 180, 0.6);
+}
+
+.member-name {
+  color: rgba(255, 248, 220, 0.95);
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-shadow: 
+    0 0 8px rgba(255, 248, 220, 0.6),
+    0 0 16px rgba(255, 235, 180, 0.4),
+    1px 1px 2px rgba(0, 0, 0, 0.5);
+  position: relative;
+  z-index: 1;
+}
+
+.concept-subsection {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(90deg,
+    rgba(255, 248, 220, 0.2) 0%,
+    rgba(255, 235, 180, 0.15) 50%,
+    rgba(255, 200, 100, 0.1) 100%);
+  border-radius: 12px;
+  border-left: 5px solid rgba(255, 200, 100, 0.6);
+  box-shadow:
+    inset 0 0 20px rgba(255, 235, 180, 0.2),
+    0 4px 10px rgba(0, 0, 0, 0.3),
+    inset 0 1px 3px rgba(255, 255, 255, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.concept-subsection::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 1.5px, transparent 1.5px);
+  background-size: 25px 25px;
+  animation: bubbleMove 18s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes bubbleMove {
+  0% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(30px, 30px);
+  }
+}
+
+.concept-subsection:last-child {
+  margin-bottom: 0;
+}
+
+.concept-subsection h3 {
+  font-size: 1.5rem;
+  color: rgba(255, 248, 220, 0.95);
+  margin-bottom: 1rem;
+  text-shadow:
+    0 0 12px rgba(255, 248, 220, 0.7),
+    0 0 24px rgba(255, 235, 180, 0.5),
+    1px 1px 3px rgba(0, 0, 0, 0.6);
+  position: relative;
+  z-index: 1;
+}
+
+.concept-subsection p {
+  font-size: 1.05rem;
+  line-height: 1.8;
+  color: rgba(255, 248, 220, 0.95);
+  text-align: justify;
+  position: relative;
+  z-index: 1;
+  text-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 5px rgba(255, 235, 180, 0.3);
+}
+
+@media (max-width: 768px) {
+  .doc-header h1 {
+    font-size: 2.5rem;
+  }
+
+  .doc-content {
+    padding: 2rem 1.5rem;
+  }
+
+  .doc-section h2 {
+    font-size: 1.6rem;
+  }
+
+  .team-members {
+    flex-direction: column;
+  }
+
+  .team-member {
+    width: 100%;
+  }
+}
