@@ -5,20 +5,24 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [FavoriteChampionEntity::class], version = 2)
-abstract class ArcaneAtlasDatabase : RoomDatabase() {
-    abstract fun favoriteChampionDao(): FavoriteChampionDao
+@Database(
+    entities = [FavoriteBreweryEntity::class, BreweryEntity::class],
+    version = 2
+)
+abstract class BriefBeerDatabase : RoomDatabase() {
+    abstract fun favoriteBreweryDao(): FavoriteBreweryDao
+    abstract fun breweryDao(): BreweryDao
 
     companion object {
         @Volatile
-        private var INSTANCE: ArcaneAtlasDatabase? = null
+        private var INSTANCE: BriefBeerDatabase? = null
 
-        fun getDatabase(context: Context): ArcaneAtlasDatabase {
+        fun getDatabase(context: Context): BriefBeerDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
-                    ArcaneAtlasDatabase::class.java,
-                    "arcane_atlas_db"
+                    BriefBeerDatabase::class.java,
+                    "brief_beer_db"
                 )
                     .fallbackToDestructiveMigration()
                     .build()

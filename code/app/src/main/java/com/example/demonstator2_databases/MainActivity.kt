@@ -43,39 +43,39 @@ import coil.compose.AsyncImage
 import com.example.demonstator2_databases.ui.theme.Demonstator2databasesTheme
 
 class MainActivity : ComponentActivity() {
-    private val viewModel: ArcaneAtlasViewModel by viewModels()
+    private val viewModel: BriefBeerViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             Demonstator2databasesTheme {
-                ArcaneAtlasApp(viewModel)
+                BriefBeerApp(viewModel)
             }
         }
     }
 }
 
-sealed class ArcaneAtlasDestination(val route: String, val label: String) {
-    data object ChampionList : ArcaneAtlasDestination("champion_list", "Champion List")
-    data object Favorites : ArcaneAtlasDestination("favorites", "Profile")
-    data object ChampionDetail : ArcaneAtlasDestination("champion_detail", "Champion")
+sealed class BriefBeerDestination(val route: String, val label: String) {
+    data object BreweryList : BriefBeerDestination("brewery_list", "Breweries")
+    data object Favorites : BriefBeerDestination("favorites", "Favorites")
+    data object BreweryDetail : BriefBeerDestination("brewery_detail", "Brewery")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ArcaneAtlasApp(viewModel: ArcaneAtlasViewModel) {
+fun BriefBeerApp(viewModel: BriefBeerViewModel) {
     val navController = rememberNavController()
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         bottomBar = {
-            ArcaneAtlasBottomBar(navController)
+            BriefBeerBottomBar(navController)
         },
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "ArcaneAtlas",
+                        text = "BriefBeer",
                         fontSize = 20.sp,
                         textAlign = TextAlign.Center
                     )
@@ -83,9 +83,9 @@ fun ArcaneAtlasApp(viewModel: ArcaneAtlasViewModel) {
                 navigationIcon = {
                     val backStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = backStackEntry?.destination?.route
-                    if (currentDestination == ArcaneAtlasDestination.ChampionDetail.route) {
+                    if (currentDestination == BriefBeerDestination.BreweryDetail.route) {
                         IconButton(onClick = {
-                            viewModel.clearSelectedChampion()
+                            viewModel.clearSelectedBrewery()
                             navController.popBackStack()
                         }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -96,7 +96,7 @@ fun ArcaneAtlasApp(viewModel: ArcaneAtlasViewModel) {
         }
     ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
-            ArcaneAtlasNavHost(
+            BriefBeerNavHost(
                 navController = navController,
                 viewModel = viewModel,
                 uiState = uiState
@@ -106,10 +106,10 @@ fun ArcaneAtlasApp(viewModel: ArcaneAtlasViewModel) {
 }
 
 @Composable
-fun ArcaneAtlasBottomBar(navController: NavHostController) {
+fun BriefBeerBottomBar(navController: NavHostController) {
     val items = listOf(
-        ArcaneAtlasDestination.ChampionList,
-        ArcaneAtlasDestination.Favorites
+        BriefBeerDestination.BreweryList,
+        BriefBeerDestination.Favorites
     )
     NavigationBar {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -118,10 +118,10 @@ fun ArcaneAtlasBottomBar(navController: NavHostController) {
             val selected = currentDestination?.route == screen.route
             NavigationBarItem(
                 icon = {
-                    if (screen == ArcaneAtlasDestination.ChampionList) {
+                    if (screen == BriefBeerDestination.BreweryList) {
                         Icon(Icons.Default.List, contentDescription = screen.label)
                     } else {
-                        Icon(Icons.Default.Person, contentDescription = screen.label)
+                        Icon(Icons.Default.Favorite, contentDescription = screen.label)
                     }
                 },
                 label = { Text(screen.label) },
@@ -141,43 +141,43 @@ fun ArcaneAtlasBottomBar(navController: NavHostController) {
 }
 
 @Composable
-fun ArcaneAtlasNavHost(
+fun BriefBeerNavHost(
     navController: NavHostController,
-    viewModel: ArcaneAtlasViewModel,
-    uiState: ArcaneAtlasUiState
+    viewModel: BriefBeerViewModel,
+    uiState: BriefBeerUiState
 ) {
     NavHost(
         navController = navController,
-        startDestination = ArcaneAtlasDestination.ChampionList.route
+        startDestination = BriefBeerDestination.BreweryList.route
     ) {
-        composable(ArcaneAtlasDestination.ChampionList.route) {
-            ChampionListScreen(
+        composable(BriefBeerDestination.BreweryList.route) {
+            BreweryListScreen(
                 uiState = uiState,
                 onSearchChange = viewModel::onSearchQueryChange,
-                onRoleChange = viewModel::onRoleFilterChange,
-                onChampionClick = {
-                    viewModel.selectChampion(it)
-                    navController.navigate(ArcaneAtlasDestination.ChampionDetail.route)
+                onTypeChange = viewModel::onTypeFilterChange,
+                onBreweryClick = {
+                    viewModel.selectBrewery(it)
+                    navController.navigate(BriefBeerDestination.BreweryDetail.route)
                 },
                 onToggleFavorite = viewModel::toggleFavorite
             )
         }
-        composable(ArcaneAtlasDestination.Favorites.route) {
+        composable(BriefBeerDestination.Favorites.route) {
             FavoritesScreen(
                 uiState = uiState,
-                onChampionClick = {
-                    viewModel.selectChampion(it)
-                    navController.navigate(ArcaneAtlasDestination.ChampionDetail.route)
+                onBreweryClick = {
+                    viewModel.selectBrewery(it)
+                    navController.navigate(BriefBeerDestination.BreweryDetail.route)
                 },
                 onToggleFavorite = viewModel::toggleFavorite
             )
         }
-        composable(ArcaneAtlasDestination.ChampionDetail.route) {
-            val isFavorite = uiState.selectedChampion?.let { champ ->
-                uiState.favorites.any { it.id == champ.id }
+        composable(BriefBeerDestination.BreweryDetail.route) {
+            val isFavorite = uiState.selectedBrewery?.let { brewery ->
+                uiState.favorites.any { it.id == brewery.id }
             } ?: false
-            ChampionDetailScreen(
-                detail = uiState.selectedChampion,
+            BreweryDetailScreen(
+                detail = uiState.selectedBrewery,
                 isFavorite = isFavorite,
                 onToggleFavorite = { item ->
                     viewModel.toggleFavorite(item)
@@ -188,52 +188,62 @@ fun ArcaneAtlasNavHost(
 }
 
 @Composable
-fun ChampionListScreen(
-    uiState: ArcaneAtlasUiState,
+fun BreweryListScreen(
+    uiState: BriefBeerUiState,
     onSearchChange: (String) -> Unit,
-    onRoleChange: (String?) -> Unit,
-    onChampionClick: (String) -> Unit,
-    onToggleFavorite: (ChampionListItem) -> Unit
+    onTypeChange: (String?) -> Unit,
+    onBreweryClick: (String) -> Unit,
+    onToggleFavorite: (BreweryListItem) -> Unit
 ) {
-    val roles = remember(uiState.champions) {
-        uiState.champions.flatMap { it.roles }.distinct().sorted()
+    val types = remember(uiState.breweries) {
+        uiState.breweries.map { it.breweryType }.distinct().filter { it.isNotEmpty() }.sorted()
     }
     val favoriteIds = remember(uiState.favorites) {
         uiState.favorites.map { it.id }.toSet()
     }
-    ChampionGridContent(
-        champions = uiState.filteredChampions.ifEmpty { uiState.champions },
-        searchQuery = uiState.searchQuery,
-        onSearchChange = onSearchChange,
-        roles = roles,
-        selectedRole = uiState.selectedRoleFilter,
-        onRoleChange = onRoleChange,
-        onChampionClick = onChampionClick,
-        onToggleFavorite = onToggleFavorite,
-        favoriteIds = favoriteIds
-    )
+    
+    if (uiState.isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+    } else {
+        BreweryGridContent(
+            breweries = uiState.filteredBreweries.ifEmpty { uiState.breweries },
+            searchQuery = uiState.searchQuery,
+            onSearchChange = onSearchChange,
+            types = types,
+            selectedType = uiState.selectedTypeFilter,
+            onTypeChange = onTypeChange,
+            onBreweryClick = onBreweryClick,
+            onToggleFavorite = onToggleFavorite,
+            favoriteIds = favoriteIds
+        )
+    }
 }
 
 @Composable
 fun FavoritesScreen(
-    uiState: ArcaneAtlasUiState,
-    onChampionClick: (String) -> Unit,
-    onToggleFavorite: (ChampionListItem) -> Unit
+    uiState: BriefBeerUiState,
+    onBreweryClick: (String) -> Unit,
+    onToggleFavorite: (BreweryListItem) -> Unit
 ) {
-    ChampionFavoritesContent(
+    BreweryFavoritesContent(
         favorites = uiState.favorites.filter { 
             it.id.isNotEmpty() && it.name.isNotEmpty() 
         },
-        onChampionClick = onChampionClick,
+        onBreweryClick = onBreweryClick,
         onToggleFavorite = onToggleFavorite
     )
 }
 
 @Composable
-fun ChampionDetailScreen(
-    detail: ChampionDetail?,
+fun BreweryDetailScreen(
+    detail: BreweryDetail?,
     isFavorite: Boolean = false,
-    onToggleFavorite: (ChampionListItem) -> Unit
+    onToggleFavorite: (BreweryListItem) -> Unit
 ) {
     if (detail == null) {
         Box(
@@ -241,7 +251,7 @@ fun ChampionDetailScreen(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "Select a champion",
+                text = "Select a brewery",
                 fontSize = 18.sp,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -250,17 +260,18 @@ fun ChampionDetailScreen(
         return
     }
 
-    ChampionDetailContent(
+    BreweryDetailContent(
         detail = detail,
         isFavorite = isFavorite,
         onToggleFavorite = {
             onToggleFavorite(
-                ChampionListItem(
+                BreweryListItem(
                     id = detail.id,
                     name = detail.name,
-                    title = detail.title,
-                    roles = detail.roles,
-                    imageUrl = detail.imageUrl
+                    breweryType = detail.breweryType,
+                    city = detail.city ?: "",
+                    state = detail.state ?: "",
+                    country = detail.country ?: ""
                 )
             )
         }
@@ -269,15 +280,15 @@ fun ChampionDetailScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChampionGridContent(
-    champions: List<ChampionListItem>,
+fun BreweryGridContent(
+    breweries: List<BreweryListItem>,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
-    roles: List<String>,
-    selectedRole: String?,
-    onRoleChange: (String?) -> Unit,
-    onChampionClick: (String) -> Unit,
-    onToggleFavorite: (ChampionListItem) -> Unit,
+    types: List<String>,
+    selectedType: String?,
+    onTypeChange: (String?) -> Unit,
+    onBreweryClick: (String) -> Unit,
+    onToggleFavorite: (BreweryListItem) -> Unit,
     favoriteIds: Set<String> = emptySet()
 ) {
     Column(
@@ -286,7 +297,7 @@ fun ChampionGridContent(
             .padding(16.dp)
     ) {
         Text(
-            text = "Champions",
+            text = "Breweries",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 16.dp)
@@ -295,7 +306,7 @@ fun ChampionGridContent(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
-            label = { Text("Search champions") },
+            label = { Text("Search breweries") },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 12.dp),
@@ -310,15 +321,15 @@ fun ChampionGridContent(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             FilterChip(
-                selected = selectedRole == null,
-                onClick = { onRoleChange(null) },
+                selected = selectedType == null,
+                onClick = { onTypeChange(null) },
                 label = { Text("All") }
             )
-            roles.forEach { role ->
+            types.forEach { type ->
                 FilterChip(
-                    selected = selectedRole == role,
-                    onClick = { onRoleChange(role) },
-                    label = { Text(role) }
+                    selected = selectedType == type,
+                    onClick = { onTypeChange(type) },
+                    label = { Text(type.replaceFirstChar { it.uppercase() }) }
                 )
             }
         }
@@ -329,12 +340,12 @@ fun ChampionGridContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(champions) { champ ->
-                ChampionCard(
-                    champion = champ,
-                    onClick = { onChampionClick(champ.id) },
-                    onToggleFavorite = { onToggleFavorite(champ) },
-                    isFavorite = champ.id in favoriteIds
+            items(breweries) { brewery ->
+                BreweryCard(
+                    brewery = brewery,
+                    onClick = { onBreweryClick(brewery.id) },
+                    onToggleFavorite = { onToggleFavorite(brewery) },
+                    isFavorite = brewery.id in favoriteIds
                 )
             }
         }
@@ -343,8 +354,8 @@ fun ChampionGridContent(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChampionCard(
-    champion: ChampionListItem,
+fun BreweryCard(
+    brewery: BreweryListItem,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
     isFavorite: Boolean = false
@@ -369,16 +380,12 @@ fun ChampionCard(
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (champion.imageUrl.isNotEmpty()) {
-                        AsyncImage(
-                            model = champion.imageUrl,
-                            contentDescription = champion.name,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(12.dp),
-                            contentScale = ContentScale.Fit
-                        )
-                    }
+                    Text(
+                        text = brewery.name.take(2).uppercase(),
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
                 
                 Column(
@@ -388,19 +395,27 @@ fun ChampionCard(
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
                     Text(
-                        text = champion.name,
+                        text = brewery.name,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (champion.title.isNotEmpty()) {
+                    if (brewery.country.isNotEmpty() && brewery.city.isNotEmpty()) {
                         Text(
-                            text = champion.title,
+                            text = "${brewery.country}, ${brewery.city}",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (brewery.breweryType.isNotEmpty()) {
+                        Text(
+                            text = brewery.breweryType.replaceFirstChar { it.uppercase() },
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 4.dp)
                         )
                     }
                 }
@@ -424,10 +439,10 @@ fun ChampionCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChampionFavoritesContent(
-    favorites: List<ChampionListItem>,
-    onChampionClick: (String) -> Unit,
-    onToggleFavorite: (ChampionListItem) -> Unit
+fun BreweryFavoritesContent(
+    favorites: List<BreweryListItem>,
+    onBreweryClick: (String) -> Unit,
+    onToggleFavorite: (BreweryListItem) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -435,7 +450,7 @@ fun ChampionFavoritesContent(
             .padding(16.dp)
     ) {
         Text(
-            text = "List of stored champions",
+            text = "Favorite Breweries",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 16.dp)
@@ -459,12 +474,12 @@ fun ChampionFavoritesContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                items(favorites) { champ ->
-                    if (champ.id.isNotEmpty() && champ.name.isNotEmpty()) {
-                        ChampionCard(
-                            champion = champ,
-                            onClick = { onChampionClick(champ.id) },
-                            onToggleFavorite = { onToggleFavorite(champ) },
+                items(favorites) { brewery ->
+                    if (brewery.id.isNotEmpty() && brewery.name.isNotEmpty()) {
+                        BreweryCard(
+                            brewery = brewery,
+                            onClick = { onBreweryClick(brewery.id) },
+                            onToggleFavorite = { onToggleFavorite(brewery) },
                             isFavorite = true
                         )
                     }
@@ -475,8 +490,8 @@ fun ChampionFavoritesContent(
 }
 
 @Composable
-fun ChampionDetailContent(
-    detail: ChampionDetail,
+fun BreweryDetailContent(
+    detail: BreweryDetail,
     isFavorite: Boolean = false,
     onToggleFavorite: () -> Unit
 ) {
@@ -488,15 +503,15 @@ fun ChampionDetailContent(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(350.dp)
+                .height(200.dp)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
-            AsyncImage(
-                model = detail.imageUrl,
-                contentDescription = detail.name,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
+            Text(
+                text = detail.name.take(2).uppercase(),
+                fontSize = 64.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
         }
         
@@ -520,12 +535,14 @@ fun ChampionDetailContent(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Text(
-                            text = detail.title,
-                            fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
+                        if (detail.breweryType.isNotEmpty()) {
+                            Text(
+                                text = detail.breweryType.replaceFirstChar { it.uppercase() },
+                                fontSize = 18.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
                     }
                     
                     FloatingActionButton(
@@ -540,32 +557,10 @@ fun ChampionDetailContent(
                     }
                 }
                 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    detail.roles.forEach { role ->
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Text(
-                                text = role,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
-                
                 Divider(modifier = Modifier.padding(vertical = 16.dp))
                 
                 Text(
-                    text = "Stats",
+                    text = "Address",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 12.dp)
@@ -581,52 +576,423 @@ fun ChampionDetailContent(
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
-                        detail.stats.forEach { (label, value) ->
+                        if (!detail.street.isNullOrEmpty()) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
+                                    .padding(vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = label,
+                                    text = "Street",
                                     fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                 )
                                 Text(
-                                    text = value.toString(),
+                                    text = detail.street,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.End
+                                )
+                            }
+                        }
+                        if (!detail.address1.isNullOrEmpty()) {
+                            if (!detail.street.isNullOrEmpty()) {
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Address 1",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = detail.address1,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.End
+                                )
+                            }
+                        }
+                        if (!detail.address2.isNullOrEmpty()) {
+                            if (!detail.street.isNullOrEmpty() || !detail.address1.isNullOrEmpty()) {
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Address 2",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = detail.address2,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.End
+                                )
+                            }
+                        }
+                        if (!detail.address3.isNullOrEmpty()) {
+                            if (!detail.street.isNullOrEmpty() || !detail.address1.isNullOrEmpty() || !detail.address2.isNullOrEmpty()) {
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Address 3",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = detail.address3,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.End
+                                )
+                            }
+                        }
+                        if (!detail.city.isNullOrEmpty()) {
+                            if (!detail.street.isNullOrEmpty() || !detail.address1.isNullOrEmpty() || !detail.address2.isNullOrEmpty() || !detail.address3.isNullOrEmpty()) {
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "City",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = detail.city,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
-                            if (label != detail.stats.keys.last()) {
+                        }
+                        if (!detail.state.isNullOrEmpty()) {
+                            if (!detail.street.isNullOrEmpty() || !detail.address1.isNullOrEmpty() || !detail.address2.isNullOrEmpty() || !detail.address3.isNullOrEmpty() || !detail.city.isNullOrEmpty()) {
                                 Divider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "State",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = detail.state,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        if (!detail.countyProvince.isNullOrEmpty()) {
+                            if (!detail.street.isNullOrEmpty() || !detail.address1.isNullOrEmpty() || !detail.address2.isNullOrEmpty() || !detail.address3.isNullOrEmpty() || !detail.city.isNullOrEmpty() || !detail.state.isNullOrEmpty()) {
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "County/Province",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = detail.countyProvince,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        if (!detail.stateProvince.isNullOrEmpty()) {
+                            if (!detail.street.isNullOrEmpty() || !detail.address1.isNullOrEmpty() || !detail.address2.isNullOrEmpty() || !detail.address3.isNullOrEmpty() || !detail.city.isNullOrEmpty() || !detail.state.isNullOrEmpty() || !detail.countyProvince.isNullOrEmpty()) {
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "State/Province",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = detail.stateProvince,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        if (!detail.postalCode.isNullOrEmpty()) {
+                            if (!detail.street.isNullOrEmpty() || !detail.address1.isNullOrEmpty() || !detail.address2.isNullOrEmpty() || !detail.address3.isNullOrEmpty() || !detail.city.isNullOrEmpty() || !detail.state.isNullOrEmpty() || !detail.countyProvince.isNullOrEmpty() || !detail.stateProvince.isNullOrEmpty()) {
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Postal Code",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = detail.postalCode,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        if (!detail.country.isNullOrEmpty()) {
+                            if (!detail.street.isNullOrEmpty() || !detail.address1.isNullOrEmpty() || !detail.address2.isNullOrEmpty() || !detail.address3.isNullOrEmpty() || !detail.city.isNullOrEmpty() || !detail.state.isNullOrEmpty() || !detail.countyProvince.isNullOrEmpty() || !detail.stateProvince.isNullOrEmpty() || !detail.postalCode.isNullOrEmpty()) {
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Country",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = detail.country,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     }
                 }
                 
-                Text(
-                    text = "Lore",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-                
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
+                if (!detail.longitude.isNullOrEmpty() || !detail.latitude.isNullOrEmpty()) {
                     Text(
-                        text = detail.lore,
-                        fontSize = 15.sp,
-                        lineHeight = 24.sp,
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = "Coordinates",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
                     )
+                    
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 24.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            if (!detail.latitude.isNullOrEmpty()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Latitude",
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                    Text(
+                                        text = detail.latitude,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                            if (!detail.longitude.isNullOrEmpty()) {
+                                if (!detail.latitude.isNullOrEmpty()) {
+                                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Longitude",
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                    Text(
+                                        text = detail.longitude,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if (!detail.phone.isNullOrEmpty() || !detail.websiteUrl.isNullOrEmpty()) {
+                    Text(
+                        text = "Contact",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 24.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            if (!detail.phone.isNullOrEmpty()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Phone",
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                    Text(
+                                        text = detail.phone,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                            if (!detail.websiteUrl.isNullOrEmpty()) {
+                                if (!detail.phone.isNullOrEmpty()) {
+                                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Website",
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                    Text(
+                                        text = detail.websiteUrl,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if (!detail.createdAt.isNullOrEmpty() || !detail.updatedAt.isNullOrEmpty()) {
+                    Text(
+                        text = "Metadata",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 24.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            if (!detail.createdAt.isNullOrEmpty()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Created At",
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                    Text(
+                                        text = detail.createdAt,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                            if (!detail.updatedAt.isNullOrEmpty()) {
+                                if (!detail.createdAt.isNullOrEmpty()) {
+                                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Updated At",
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                    Text(
+                                        text = detail.updatedAt,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
