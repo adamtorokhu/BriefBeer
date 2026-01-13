@@ -1,9 +1,12 @@
 package com.example.demonstator2_databases
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,6 +24,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -46,6 +50,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.example.demonstator2_databases.ui.theme.Demonstator2databasesTheme
+
+// Helper function to build Google Maps URL from coordinates
+fun buildGoogleMapsUrl(latitude: String, longitude: String): String {
+    return "https://www.google.com/maps?q=$latitude,$longitude"
+}
 
 class MainActivity : ComponentActivity() {
     private val viewModel: BriefBeerViewModel by viewModels()
@@ -894,6 +903,35 @@ fun BreweryDetailContent(
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Medium
                                     )
+                                }
+                            }
+                            
+                            // Add Google Maps link button if both coordinates are available
+                            if (!detail.latitude.isNullOrEmpty() && !detail.longitude.isNullOrEmpty()) {
+                                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                                val context = LocalContext.current
+                                Button(
+                                    onClick = {
+                                        val lat = detail.latitude
+                                        val lng = detail.longitude
+                                        val url = buildGoogleMapsUrl(lat, lng)
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                        context.startActivity(intent)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.LocationOn,
+                                        contentDescription = "Location",
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Open in Google Maps")
                                 }
                             }
                         }

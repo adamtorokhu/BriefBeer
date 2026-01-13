@@ -264,13 +264,23 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         val query = state.searchQuery.trim().lowercase()
         val type = state.selectedTypeFilter
 
-        val filtered = state.breweries.filter { brewery ->
-            val matchesQuery = query.isEmpty() ||
-                brewery.name.lowercase().contains(query) ||
-                brewery.country.lowercase().contains(query) ||
-                brewery.city.lowercase().contains(query)
-            val matchesType = type == null || brewery.breweryType.equals(type, ignoreCase = true)
-            matchesQuery && matchesType
+        val filtered = if (query.isEmpty() && type == null) {
+            // No filters applied, show all
+            state.breweries
+        } else {
+            state.breweries.filter { brewery ->
+                val matchesQuery = if (query.isEmpty()) {
+                    true
+                } else {
+                    // Search in name, country, city, and state
+                    brewery.name.lowercase().contains(query) ||
+                    brewery.country.lowercase().contains(query) ||
+                    brewery.city.lowercase().contains(query) ||
+                    brewery.state.lowercase().contains(query)
+                }
+                val matchesType = type == null || brewery.breweryType.equals(type, ignoreCase = true)
+                matchesQuery && matchesType
+            }
         }
 
         _uiState.value = _uiState.value.copy(filteredBreweries = filtered)
