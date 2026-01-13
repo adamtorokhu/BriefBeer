@@ -95,7 +95,8 @@ data class BriefBeerUiState(
     val selectedBrewery: BreweryDetail? = null,
     val searchQuery: String = "",
     val selectedTypeFilter: String? = null,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val showAddBreweryDialog: Boolean = false
 )
 
 class BriefBeerViewModel(application: Application) : AndroidViewModel(application) {
@@ -420,6 +421,74 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         country = item.country
                     )
                 )
+            }
+        }
+    }
+
+    fun showAddBreweryDialog() {
+        _uiState.value = _uiState.value.copy(showAddBreweryDialog = true)
+    }
+
+    fun hideAddBreweryDialog() {
+        _uiState.value = _uiState.value.copy(showAddBreweryDialog = false)
+    }
+
+    fun addBrewery(
+        name: String,
+        breweryType: String,
+        city: String,
+        country: String,
+        state: String = "",
+        street: String? = null,
+        postalCode: String? = null,
+        phone: String? = null,
+        websiteUrl: String? = null
+    ) {
+        viewModelScope.launch {
+            try {
+                val newId = "custom_${System.currentTimeMillis()}"
+                
+                val breweryEntity = BreweryEntity(
+                    id = newId,
+                    name = name,
+                    breweryType = breweryType,
+                    street = street,
+                    address1 = null,
+                    address2 = null,
+                    address3 = null,
+                    city = city,
+                    state = if (state.isNotEmpty()) state else null,
+                    countyProvince = null,
+                    stateProvince = null,
+                    postalCode = postalCode,
+                    country = country,
+                    longitude = null,
+                    latitude = null,
+                    phone = phone,
+                    websiteUrl = websiteUrl,
+                    updatedAt = null,
+                    createdAt = null
+                )
+                
+                breweryDao.insert(breweryEntity)
+                
+                val newBrewery = BreweryListItem(
+                    id = newId,
+                    name = name,
+                    breweryType = breweryType,
+                    city = city,
+                    state = state,
+                    country = country
+                )
+                
+                val updatedBreweries = (_uiState.value.breweries + newBrewery).sortedBy { it.name }
+                _uiState.value = _uiState.value.copy(
+                    breweries = updatedBreweries,
+                    showAddBreweryDialog = false
+                )
+                applyFilters()
+            } catch (e: Exception) {
+                //Error Handling(TODO)
             }
         }
     }

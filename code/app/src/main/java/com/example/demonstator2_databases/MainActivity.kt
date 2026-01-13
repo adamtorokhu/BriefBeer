@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -14,7 +15,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
@@ -23,7 +26,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -159,7 +164,10 @@ fun BriefBeerNavHost(
                     viewModel.selectBrewery(it)
                     navController.navigate(BriefBeerDestination.BreweryDetail.route)
                 },
-                onToggleFavorite = viewModel::toggleFavorite
+                onToggleFavorite = viewModel::toggleFavorite,
+                onAddBrewery = viewModel::addBrewery,
+                onShowAddDialog = viewModel::showAddBreweryDialog,
+                onHideAddDialog = viewModel::hideAddBreweryDialog
             )
         }
         composable(BriefBeerDestination.Favorites.route) {
@@ -193,13 +201,23 @@ fun BreweryListScreen(
     onSearchChange: (String) -> Unit,
     onTypeChange: (String?) -> Unit,
     onBreweryClick: (String) -> Unit,
-    onToggleFavorite: (BreweryListItem) -> Unit
+    onToggleFavorite: (BreweryListItem) -> Unit,
+    onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?) -> Unit,
+    onShowAddDialog: () -> Unit,
+    onHideAddDialog: () -> Unit
 ) {
     val types = remember(uiState.breweries) {
         uiState.breweries.map { it.breweryType }.distinct().filter { it.isNotEmpty() }.sorted()
     }
     val favoriteIds = remember(uiState.favorites) {
         uiState.favorites.map { it.id }.toSet()
+    }
+    
+    if (uiState.showAddBreweryDialog) {
+        AddBreweryDialog(
+            onDismiss = onHideAddDialog,
+            onAddBrewery = onAddBrewery
+        )
     }
     
     if (uiState.isLoading) {
@@ -210,17 +228,32 @@ fun BreweryListScreen(
             CircularProgressIndicator()
         }
     } else {
-        BreweryGridContent(
-            breweries = uiState.filteredBreweries.ifEmpty { uiState.breweries },
-            searchQuery = uiState.searchQuery,
-            onSearchChange = onSearchChange,
-            types = types,
-            selectedType = uiState.selectedTypeFilter,
-            onTypeChange = onTypeChange,
-            onBreweryClick = onBreweryClick,
-            onToggleFavorite = onToggleFavorite,
-            favoriteIds = favoriteIds
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            BreweryGridContent(
+                breweries = uiState.filteredBreweries.ifEmpty { uiState.breweries },
+        searchQuery = uiState.searchQuery,
+        onSearchChange = onSearchChange,
+                types = types,
+                selectedType = uiState.selectedTypeFilter,
+                onTypeChange = onTypeChange,
+                onBreweryClick = onBreweryClick,
+        onToggleFavorite = onToggleFavorite,
+        favoriteIds = favoriteIds
+    )
+            
+            FloatingActionButton(
+                onClick = onShowAddDialog,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Brewery"
+                )
+            }
+        }
     }
 }
 
@@ -536,12 +569,12 @@ fun BreweryDetailContent(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         if (detail.breweryType.isNotEmpty()) {
-                            Text(
+                        Text(
                                 text = detail.breweryType.replaceFirstChar { it.uppercase() },
-                                fontSize = 18.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
                         }
                     }
                     
@@ -577,9 +610,9 @@ fun BreweryDetailContent(
                         modifier = Modifier.padding(16.dp)
                     ) {
                         if (!detail.street.isNullOrEmpty()) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
                                     .padding(vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -606,8 +639,8 @@ fun BreweryDetailContent(
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
+                        ) {
+                            Text(
                                     text = "Address 1",
                                     fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -615,7 +648,7 @@ fun BreweryDetailContent(
                                 Text(
                                     text = detail.address1,
                                     fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
+                                fontWeight = FontWeight.Medium,
                                     modifier = Modifier.weight(1f),
                                     textAlign = androidx.compose.ui.text.style.TextAlign.End
                                 )
@@ -732,9 +765,9 @@ fun BreweryDetailContent(
                                     text = detail.countyProvince,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium
-                                )
-                            }
+                            )
                         }
+                    }
                         if (!detail.stateProvince.isNullOrEmpty()) {
                             if (!detail.street.isNullOrEmpty() || !detail.address1.isNullOrEmpty() || !detail.address2.isNullOrEmpty() || !detail.address3.isNullOrEmpty() || !detail.city.isNullOrEmpty() || !detail.state.isNullOrEmpty() || !detail.countyProvince.isNullOrEmpty()) {
                                 Divider(modifier = Modifier.padding(vertical = 4.dp))
@@ -829,7 +862,7 @@ fun BreweryDetailContent(
                                         .padding(vertical = 8.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text(
+                Text(
                                         text = "Latitude",
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -870,44 +903,44 @@ fun BreweryDetailContent(
                 if (!detail.phone.isNullOrEmpty() || !detail.websiteUrl.isNullOrEmpty()) {
                     Text(
                         text = "Contact",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 24.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                        shape = RoundedCornerShape(12.dp)
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
                             if (!detail.phone.isNullOrEmpty()) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
                                         text = "Phone",
-                                        fontSize = 14.sp,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
-                                    Text(
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
                                         text = detail.phone,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                             }
                             if (!detail.websiteUrl.isNullOrEmpty()) {
                                 if (!detail.phone.isNullOrEmpty()) {
-                                    Divider(modifier = Modifier.padding(vertical = 4.dp))
-                                }
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -933,19 +966,19 @@ fun BreweryDetailContent(
                 }
                 
                 if (!detail.createdAt.isNullOrEmpty() || !detail.updatedAt.isNullOrEmpty()) {
-                    Text(
+                Text(
                         text = "Metadata",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 24.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                        shape = RoundedCornerShape(12.dp)
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp)
@@ -956,8 +989,8 @@ fun BreweryDetailContent(
                                         .fillMaxWidth()
                                         .padding(vertical = 8.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
+                ) {
+                    Text(
                                         text = "Created At",
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -997,4 +1030,400 @@ fun BreweryDetailContent(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddBreweryDialog(
+    onDismiss: () -> Unit,
+    onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var breweryType by remember { mutableStateOf("") }
+    var city by remember { mutableStateOf("") }
+    var country by remember { mutableStateOf("") }
+    var state by remember { mutableStateOf("") }
+    var street by remember { mutableStateOf("") }
+    var postalCode by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var websiteUrl by remember { mutableStateOf("") }
+
+    val breweryTypes = listOf("micro", "nano", "regional", "brewpub", "large", "planning", "bar", "contract", "proprietor", "closed")
+
+    val countries = listOf(
+        "🇦🇫 Afghanistan",
+        "🇦🇱 Albania",
+        "🇩🇿 Algeria",
+        "🇦🇩 Andorra",
+        "🇦🇴 Angola",
+        "🇦🇬 Antigua and Barbuda",
+        "🇦🇷 Argentina",
+        "🇦🇲 Armenia",
+        "🇦🇺 Australia",
+        "🇦🇹 Austria",
+        "🇦🇿 Azerbaijan",
+        "🇧🇸 Bahamas",
+        "🇧🇭 Bahrain",
+        "🇧🇩 Bangladesh",
+        "🇧🇧 Barbados",
+        "🇧🇾 Belarus",
+        "🇧🇪 Belgium",
+        "🇧🇿 Belize",
+        "🇧🇯 Benin",
+        "🇧🇹 Bhutan",
+        "🇧🇴 Bolivia",
+        "🇧🇦 Bosnia and Herzegovina",
+        "🇧🇼 Botswana",
+        "🇧🇷 Brazil",
+        "🇧🇳 Brunei",
+        "🇧🇬 Bulgaria",
+        "🇧🇫 Burkina Faso",
+        "🇧🇮 Burundi",
+        "🇨🇻 Cabo Verde",
+        "🇰🇭 Cambodia",
+        "🇨🇲 Cameroon",
+        "🇨🇦 Canada",
+        "🇨🇫 Central African Republic",
+        "🇹🇩 Chad",
+        "🇨🇱 Chile",
+        "🇨🇳 China",
+        "🇨🇴 Colombia",
+        "🇰🇲 Comoros",
+        "🇨🇬 Congo",
+        "🇨🇩 Congo (Democratic Republic)",
+        "🇨🇷 Costa Rica",
+        "🇨🇮 Côte d’Ivoire",
+        "🇭🇷 Croatia",
+        "🇨🇺 Cuba",
+        "🇨🇾 Cyprus",
+        "🇨🇿 Czech Republic",
+        "🇩🇰 Denmark",
+        "🇩🇯 Djibouti",
+        "🇩🇲 Dominica",
+        "🇩🇴 Dominican Republic",
+        "🇪🇨 Ecuador",
+        "🇪🇬 Egypt",
+        "🇸🇻 El Salvador",
+        "🇬🇶 Equatorial Guinea",
+        "🇪🇷 Eritrea",
+        "🇪🇪 Estonia",
+        "🇸🇿 Eswatini",
+        "🇪🇹 Ethiopia",
+        "🇫🇯 Fiji",
+        "🇫🇮 Finland",
+        "🇫🇷 France",
+        "🇬🇦 Gabon",
+        "🇬🇲 Gambia",
+        "🇬🇪 Georgia",
+        "🇩🇪 Germany",
+        "🇬🇭 Ghana",
+        "🇬🇷 Greece",
+        "🇬🇩 Grenada",
+        "🇬🇹 Guatemala",
+        "🇬🇳 Guinea",
+        "🇬🇼 Guinea-Bissau",
+        "🇬🇾 Guyana",
+        "🇭🇹 Haiti",
+        "🇭🇳 Honduras",
+        "🇭🇺 Hungary",
+        "🇮🇸 Iceland",
+        "🇮🇳 India",
+        "🇮🇩 Indonesia",
+        "🇮🇷 Iran",
+        "🇮🇶 Iraq",
+        "🇮🇪 Ireland",
+        "🇮🇱 Israel",
+        "🇮🇹 Italy",
+        "🇯🇲 Jamaica",
+        "🇯🇵 Japan",
+        "🇯🇴 Jordan",
+        "🇰🇿 Kazakhstan",
+        "🇰🇪 Kenya",
+        "🇰🇮 Kiribati",
+        "🇰🇼 Kuwait",
+        "🇰🇬 Kyrgyzstan",
+        "🇱🇦 Laos",
+        "🇱🇻 Latvia",
+        "🇱🇧 Lebanon",
+        "🇱🇸 Lesotho",
+        "🇱🇷 Liberia",
+        "🇱🇾 Libya",
+        "🇱🇮 Liechtenstein",
+        "🇱🇹 Lithuania",
+        "🇱🇺 Luxembourg",
+        "🇲🇬 Madagascar",
+        "🇲🇼 Malawi",
+        "🇲🇾 Malaysia",
+        "🇲🇻 Maldives",
+        "🇲🇱 Mali",
+        "🇲🇹 Malta",
+        "🇲🇭 Marshall Islands",
+        "🇲🇷 Mauritania",
+        "🇲🇺 Mauritius",
+        "🇲🇽 Mexico",
+        "🇫🇲 Micronesia",
+        "🇲🇩 Moldova",
+        "🇲🇨 Monaco",
+        "🇲🇳 Mongolia",
+        "🇲🇪 Montenegro",
+        "🇲🇦 Morocco",
+        "🇲🇿 Mozambique",
+        "🇲🇲 Myanmar",
+        "🇳🇦 Namibia",
+        "🇳🇷 Nauru",
+        "🇳🇵 Nepal",
+        "🇳🇱 Netherlands",
+        "🇳🇿 New Zealand",
+        "🇳🇮 Nicaragua",
+        "🇳🇪 Niger",
+        "🇳🇬 Nigeria",
+        "🇰🇵 North Korea",
+        "🇲🇰 North Macedonia",
+        "🇳🇴 Norway",
+        "🇴🇲 Oman",
+        "🇵🇰 Pakistan",
+        "🇵🇼 Palau",
+        "🇵🇸 Palestine",
+        "🇵🇦 Panama",
+        "🇵🇬 Papua New Guinea",
+        "🇵🇾 Paraguay",
+        "🇵🇪 Peru",
+        "🇵🇭 Philippines",
+        "🇵🇱 Poland",
+        "🇵🇹 Portugal",
+        "🇶🇦 Qatar",
+        "🇷🇴 Romania",
+        "🇷🇺 Russia",
+        "🇷🇼 Rwanda",
+        "🇰🇳 Saint Kitts and Nevis",
+        "🇱🇨 Saint Lucia",
+        "🇻🇨 Saint Vincent and the Grenadines",
+        "🇼🇸 Samoa",
+        "🇸🇲 San Marino",
+        "🇸🇹 São Tomé and Príncipe",
+        "🇸🇦 Saudi Arabia",
+        "🇸🇳 Senegal",
+        "🇷🇸 Serbia",
+        "🇸🇨 Seychelles",
+        "🇸🇱 Sierra Leone",
+        "🇸🇬 Singapore",
+        "🇸🇰 Slovakia",
+        "🇸🇮 Slovenia",
+        "🇸🇧 Solomon Islands",
+        "🇸🇴 Somalia",
+        "🇿🇦 South Africa",
+        "🇰🇷 South Korea",
+        "🇸🇸 South Sudan",
+        "🇪🇸 Spain",
+        "🇱🇰 Sri Lanka",
+        "🇸🇩 Sudan",
+        "🇸🇷 Suriname",
+        "🇸🇪 Sweden",
+        "🇨🇭 Switzerland",
+        "🇸🇾 Syria",
+        "🇹🇯 Tajikistan",
+        "🇹🇿 Tanzania",
+        "🇹🇭 Thailand",
+        "🇹🇱 Timor-Leste",
+        "🇹🇬 Togo",
+        "🇹🇴 Tonga",
+        "🇹🇹 Trinidad and Tobago",
+        "🇹🇳 Tunisia",
+        "🇹🇷 Turkey",
+        "🇹🇲 Turkmenistan",
+        "🇹🇻 Tuvalu",
+        "🇺🇬 Uganda",
+        "🇺🇦 Ukraine",
+        "🇦🇪 United Arab Emirates",
+        "🇬🇧 United Kingdom",
+        "🇺🇸 United States",
+        "🇺🇾 Uruguay",
+        "🇺🇿 Uzbekistan",
+        "🇻🇺 Vanuatu",
+        "🇻🇦 Vatican City",
+        "🇻🇪 Venezuela",
+        "🇻🇳 Vietnam",
+        "🇾🇪 Yemen",
+        "🇿🇲 Zambia",
+        "🇿🇼 Zimbabwe"
+    )
+
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Add New Brewery",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                var breweryTypeExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = breweryTypeExpanded,
+                    onExpandedChange = { breweryTypeExpanded = !breweryTypeExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = breweryType,
+                        onValueChange = { },
+                        label = { Text("Brewery Type *") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        readOnly = true,
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = breweryTypeExpanded)
+                        }
+                    )
+                    ExposedDropdownMenu(
+                        expanded = breweryTypeExpanded,
+                        onDismissRequest = { breweryTypeExpanded = false }
+                    ) {
+                        breweryTypes.forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text(type.replaceFirstChar { it.uppercase() }) },
+                                onClick = {
+                                    breweryType = type
+                                    breweryTypeExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                OutlinedTextField(
+                    value = city,
+                    onValueChange = { city = it },
+                    label = { Text("City *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                var countryExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = countryExpanded,
+                    onExpandedChange = { countryExpanded = !countryExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = country,
+                        onValueChange = { },
+                        label = { Text("Country *") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        readOnly = true,
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = countryExpanded)
+                        }
+                    )
+                    ExposedDropdownMenu(
+                        expanded = countryExpanded,
+                        onDismissRequest = { countryExpanded = false }
+                    ) {
+                        countries.forEach { countryName ->
+                            DropdownMenuItem(
+                                text = { Text(countryName) },
+                                onClick = {
+                                    country = countryName
+                                    countryExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                OutlinedTextField(
+                    value = state,
+                    onValueChange = { state = it },
+                    label = { Text("State/Province") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                OutlinedTextField(
+                    value = street,
+                    onValueChange = { street = it },
+                    label = { Text("Street Address") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                OutlinedTextField(
+                    value = postalCode,
+                    onValueChange = { postalCode = it },
+                    label = { Text("Postal Code") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Phone") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                OutlinedTextField(
+                    value = websiteUrl,
+                    onValueChange = { websiteUrl = it },
+                    label = { Text("Website URL") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (name.isNotEmpty() && breweryType.isNotEmpty() && city.isNotEmpty() && country.isNotEmpty()) {
+                        onAddBrewery(
+                            name,
+                            breweryType,
+                            city,
+                            country,
+                            state,
+                            street.takeIf { it.isNotEmpty() },
+                            postalCode.takeIf { it.isNotEmpty() },
+                            phone.takeIf { it.isNotEmpty() },
+                            websiteUrl.takeIf { it.isNotEmpty() }
+                        )
+                        // Reset fields
+                        name = ""
+                        breweryType = ""
+                        city = ""
+                        country = ""
+                        state = ""
+                        street = ""
+                        postalCode = ""
+                        phone = ""
+                        websiteUrl = ""
+                    }
+                },
+                enabled = name.isNotEmpty() && breweryType.isNotEmpty() && city.isNotEmpty() && country.isNotEmpty()
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
