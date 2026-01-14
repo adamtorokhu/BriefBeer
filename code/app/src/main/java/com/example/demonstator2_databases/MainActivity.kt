@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -94,6 +95,10 @@ fun BriefBeerApp(viewModel: BriefBeerViewModel) {
                         textAlign = TextAlign.Center
                     )
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                ),
                 navigationIcon = {
                     val backStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = backStackEntry?.destination?.route
@@ -125,7 +130,9 @@ fun BriefBeerBottomBar(navController: NavHostController) {
         BriefBeerDestination.BreweryList,
         BriefBeerDestination.Favorites
     )
-    NavigationBar {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.primary
+    ) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentDestination = navBackStackEntry?.destination
         items.forEach { screen ->
@@ -140,6 +147,12 @@ fun BriefBeerBottomBar(navController: NavHostController) {
                 },
                 label = { Text(screen.label) },
                 selected = selected,
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = Color.White,
+                    unselectedIconColor = Color.White.copy(alpha = 0.7f),
+                    selectedTextColor = Color.White,
+                    unselectedTextColor = Color.White.copy(alpha = 0.7f)
+                ),
                 onClick = {
                     navController.navigate(screen.route) {
                         popUpTo(navController.graph.findStartDestination().id) {
@@ -365,13 +378,25 @@ fun BreweryGridContent(
             FilterChip(
                 selected = selectedType == null,
                 onClick = { onTypeChange(null) },
-                label = { Text("All") }
+                label = { Text("All") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = Color.White,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             )
             types.forEach { type ->
                 FilterChip(
                     selected = selectedType == type,
                     onClick = { onTypeChange(type) },
-                    label = { Text(type.replaceFirstChar { it.uppercase() }) }
+                    label = { Text(type.replaceFirstChar { it.uppercase() }) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = Color.White,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
             }
         }
@@ -423,10 +448,8 @@ fun BreweryCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = brewery.name.take(2).uppercase(),
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        text = "🍻",
+                        fontSize = 48.sp
                     )
                 }
                 
@@ -443,9 +466,25 @@ fun BreweryCard(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (brewery.country.isNotEmpty() && brewery.city.isNotEmpty()) {
+                    if (brewery.city.isNotEmpty() && brewery.country.isNotEmpty()) {
                         Text(
-                            text = "${brewery.country}, ${brewery.city}",
+                            text = "${brewery.city}, ${brewery.country}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    } else if (brewery.city.isNotEmpty()) {
+                        Text(
+                            text = brewery.city,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    } else if (brewery.country.isNotEmpty()) {
+                        Text(
+                            text = brewery.country,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             maxLines = 1,
@@ -550,10 +589,8 @@ fun BreweryDetailContent(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = detail.name.take(2).uppercase(),
-                fontSize = 64.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                text = "🍻",
+                fontSize = 80.sp
             )
         }
         
@@ -1427,7 +1464,7 @@ fun AddBreweryDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = {
                     if (name.isNotEmpty() && breweryType.isNotEmpty() && city.isNotEmpty() && country.isNotEmpty()) {
                         onAddBrewery(
@@ -1453,9 +1490,13 @@ fun AddBreweryDialog(
                         websiteUrl = ""
                     }
                 },
-                enabled = name.isNotEmpty() && breweryType.isNotEmpty() && city.isNotEmpty() && country.isNotEmpty()
+                enabled = name.isNotEmpty() && breweryType.isNotEmpty() && city.isNotEmpty() && country.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White
+                )
             ) {
-                Text("Add")
+                Text("Add Brewery")
             }
         },
         dismissButton = {
