@@ -18,8 +18,35 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
+import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
+import java.io.InputStreamReader
 
 private const val OPEN_BREWERY_DB_BASE_URL = "https://api.openbrewerydb.org/v1/"
+
+// Data classes for Austria beers JSON
+data class AustriaBeerJson(
+    val regions: Map<String, RegionData>,
+    val lists: Map<String, List<String>>?
+)
+
+data class RegionData(
+    val breweries: List<BreweryData>
+)
+
+data class BreweryData(
+    val name: String,
+    val location: String,
+    val type: String?,
+    val notes: String?,
+    val beers: List<BeerData>?
+)
+
+data class BeerData(
+    val name: String,
+    val style: String?,
+    val list: String?
+)
 
 data class BreweryListItem(
     val id: String,
@@ -137,7 +164,60 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                 }
         }
 
-        loadBreweries()
+        viewModelScope.launch {
+            // Load Austrian breweries from JSON first
+            loadAustrianBreweries()
+            // Then load all breweries (including the Austrian ones we just added)
+            loadBreweries()
+        }
+    }
+
+    private suspend fun loadAustrianBreweries() {
+        try {
+            val inputStream = getApplication<Application>().assets.open("austria-beers.json")
+            val reader = InputStreamReader(inputStream)
+            val gson = Gson()
+            val austriaData = gson.fromJson(reader, AustriaBeerJson::class.java)
+            reader.close()
+            
+            val austrianBreweries = mutableListOf<BreweryEntity>()
+            
+            austriaData.regions.forEach { (region, regionData) ->
+                regionData.breweries.forEach { brewery ->
+                    val breweryId = "austria_${brewery.name.replace(" ", "_").lowercase()}"
+                    
+                    austrianBreweries.add(
+                        BreweryEntity(
+                            id = breweryId,
+                            name = brewery.name,
+                            breweryType = brewery.type ?: "micro",
+                            street = null,
+                            address1 = null,
+                            address2 = null,
+                            address3 = null,
+                            city = brewery.location,
+                            state = region,
+                            countyProvince = null,
+                            stateProvince = region,
+                            postalCode = null,
+                            country = "Austria",
+                            longitude = null,
+                            latitude = null,
+                            phone = null,
+                            websiteUrl = null,
+                            updatedAt = null,
+                            createdAt = null
+                        )
+                    )
+                }
+            }
+            
+            // Insert Austrian breweries into database
+            breweryDao.insertAll(austrianBreweries)
+        } catch (e: Exception) {
+            // Log error or handle it gracefully
+            e.printStackTrace()
+        }
     }
 
     fun loadBreweries() {

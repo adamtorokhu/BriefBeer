@@ -239,7 +239,7 @@ fun BreweryListScreen(
     } else {
         Box(modifier = Modifier.fillMaxSize()) {
             BreweryGridContent(
-                breweries = uiState.filteredBreweries.ifEmpty { uiState.breweries },
+                breweries = uiState.filteredBreweries,
         searchQuery = uiState.searchQuery,
         onSearchChange = onSearchChange,
                 types = types,
