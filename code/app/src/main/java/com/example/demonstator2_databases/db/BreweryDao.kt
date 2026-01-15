@@ -18,4 +18,7 @@ interface BreweryDao {
 
     @Query("SELECT * FROM breweries WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): BreweryEntity?
+
+    @Query("DELETE FROM breweries WHERE id = :id")
+    suspend fun deleteById(id: String)
 }

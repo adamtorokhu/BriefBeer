@@ -23,6 +23,7 @@ import com.google.gson.annotations.SerializedName
 import java.io.InputStreamReader
 
 private const val OPEN_BREWERY_DB_BASE_URL = "https://api.openbrewerydb.org/v1/"
+private const val OPEN_FOOD_FACTS_BASE_URL = "https://world.openfoodfacts.org/"
 
 // Data classes for Austria beers JSON
 data class AustriaBeerJson(
@@ -39,7 +40,8 @@ data class BreweryData(
     val location: String,
     val type: String?,
     val notes: String?,
-    val beers: List<BeerData>?
+    val beers: List<BeerData>?,
+    val qr: String?
 )
 
 data class BeerData(
@@ -115,6 +117,22 @@ interface OpenBreweryApiService {
     suspend fun searchBreweries(@Query("query") query: String): List<BreweryDto>
 }
 
+// Open Food Facts API data classes
+data class OpenFoodFactsResponse(
+    val status: Int?,
+    val product: OpenFoodFactsProduct?
+)
+
+data class OpenFoodFactsProduct(
+    val brands: String?,
+    val product_name: String?
+)
+
+interface OpenFoodFactsApiService {
+    @GET("api/v0/product/{barcode}.json")
+    suspend fun getProduct(@Path("barcode") barcode: String): OpenFoodFactsResponse
+}
+
 data class BriefBeerUiState(
     val breweries: List<BreweryListItem> = emptyList(),
     val filteredBreweries: List<BreweryListItem> = emptyList(),
@@ -123,7 +141,10 @@ data class BriefBeerUiState(
     val searchQuery: String = "",
     val selectedTypeFilter: String? = null,
     val isLoading: Boolean = false,
-    val showAddBreweryDialog: Boolean = false
+    val showAddBreweryDialog: Boolean = false,
+    val showEditBreweryDialog: Boolean = false,
+    val breweryToEdit: BreweryDetail? = null,
+    val showDeleteDialog: Boolean = false
 )
 
 class BriefBeerViewModel(application: Application) : AndroidViewModel(application) {
@@ -133,6 +154,12 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         .addConverterFactory(GsonConverterFactory.create())
         .build()
         .create(OpenBreweryApiService::class.java)
+
+    private val foodFactsApi: OpenFoodFactsApiService = Retrofit.Builder()
+        .baseUrl(OPEN_FOOD_FACTS_BASE_URL)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(OpenFoodFactsApiService::class.java)
 
     private val favoritesRepository: FavoriteBreweryRepository
     private val breweryDao: BreweryDao
@@ -206,7 +233,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                             phone = null,
                             websiteUrl = null,
                             updatedAt = null,
-                            createdAt = null
+                            createdAt = null,
+                            qr = brewery.qr
                         )
                     )
                 }
@@ -300,7 +328,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         phone = dto.phone,
                         websiteUrl = dto.website_url,
                         updatedAt = dto.updated_at,
-                        createdAt = dto.created_at
+                        createdAt = dto.created_at,
+                        qr = null
                     )
                 })
 
@@ -337,6 +366,36 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
     fun onTypeFilterChange(type: String?) {
         _uiState.value = _uiState.value.copy(selectedTypeFilter = type)
         applyFilters()
+    }
+
+    fun searchByBarcode(barcode: String) {
+        viewModelScope.launch {
+            // First, try to find a brewery with this exact QR code
+            val breweryWithQr = breweryDao.getAll().find { it.qr == barcode }
+            
+            if (breweryWithQr != null) {
+                // Found a brewery with this QR code, search by its name
+                _uiState.value = _uiState.value.copy(searchQuery = breweryWithQr.name)
+            } else {
+                // No QR match, try Open Food Facts API
+                try {
+                    val response = foodFactsApi.getProduct(barcode)
+                    val brands = response.product?.brands
+                    
+                    if (!brands.isNullOrEmpty()) {
+                        // Found brand information, use it as search query
+                        _uiState.value = _uiState.value.copy(searchQuery = brands)
+                    } else {
+                        // No brand found, show "not found"
+                        _uiState.value = _uiState.value.copy(searchQuery = "not found")
+                    }
+                } catch (e: Exception) {
+                    // API call failed, show "not found"
+                    _uiState.value = _uiState.value.copy(searchQuery = "not found")
+                }
+            }
+            applyFilters()
+        }
     }
 
     private fun applyFilters() {
@@ -447,7 +506,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     phone = response.phone,
                     websiteUrl = response.website_url,
                     updatedAt = response.updated_at,
-                    createdAt = response.created_at
+                    createdAt = response.created_at,
+                    qr = null
                 ))
                 
                 _uiState.value = _uiState.value.copy(selectedBrewery = detail)
@@ -474,7 +534,7 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         phone = cachedBrewery.phone,
                         websiteUrl = cachedBrewery.websiteUrl,
                         updatedAt = cachedBrewery.updatedAt,
-                        createdAt = cachedBrewery.createdAt
+createdAt = cachedBrewery.createdAt
                     )
                     _uiState.value = _uiState.value.copy(selectedBrewery = detail)
                 }
@@ -523,6 +583,29 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.value = _uiState.value.copy(showAddBreweryDialog = false)
     }
 
+    fun showEditBreweryDialog() {
+        val brewery = _uiState.value.selectedBrewery
+        _uiState.value = _uiState.value.copy(
+            showEditBreweryDialog = true,
+            breweryToEdit = brewery
+        )
+    }
+
+    fun hideEditBreweryDialog() {
+        _uiState.value = _uiState.value.copy(
+            showEditBreweryDialog = false,
+            breweryToEdit = null
+        )
+    }
+
+    fun showDeleteDialog() {
+        _uiState.value = _uiState.value.copy(showDeleteDialog = true)
+    }
+
+    fun hideDeleteDialog() {
+        _uiState.value = _uiState.value.copy(showDeleteDialog = false)
+    }
+
     fun addBrewery(
         name: String,
         breweryType: String,
@@ -557,7 +640,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     phone = phone,
                     websiteUrl = websiteUrl,
                     updatedAt = null,
-                    createdAt = null
+                    createdAt = null,
+                    qr = null
                 )
                 
                 breweryDao.insert(breweryEntity)
@@ -577,6 +661,168 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     showAddBreweryDialog = false
                 )
                 applyFilters()
+            } catch (e: Exception) {
+                //Error Handling(TODO)
+            }
+        }
+    }
+
+    fun updateBrewery(
+        id: String,
+        name: String,
+        breweryType: String,
+        city: String,
+        country: String,
+        state: String = "",
+        street: String? = null,
+        postalCode: String? = null,
+        phone: String? = null,
+        websiteUrl: String? = null
+    ) {
+        viewModelScope.launch {
+            try {
+                val existingBrewery = breweryDao.getById(id)
+                if (existingBrewery != null) {
+                    val updatedEntity = BreweryEntity(
+                        id = id,
+                        name = name,
+                        breweryType = breweryType,
+                        street = street,
+                        address1 = existingBrewery.address1,
+                        address2 = existingBrewery.address2,
+                        address3 = existingBrewery.address3,
+                        city = city,
+                        state = if (state.isNotEmpty()) state else null,
+                        countyProvince = existingBrewery.countyProvince,
+                        stateProvince = existingBrewery.stateProvince,
+                        postalCode = postalCode,
+                        country = country,
+                        longitude = existingBrewery.longitude,
+                        latitude = existingBrewery.latitude,
+                        phone = phone,
+                        websiteUrl = websiteUrl,
+                        updatedAt = existingBrewery.updatedAt,
+                        createdAt = existingBrewery.createdAt,
+                        qr = existingBrewery.qr
+                    )
+                    
+                    breweryDao.insert(updatedEntity)
+                    
+                    // Update in favorites if it's favorited
+                    val isFavorite = favoritesRepository.isFavorite(id)
+                    if (isFavorite) {
+                        favoritesRepository.addFavorite(
+                            FavoriteBreweryEntity(
+                                breweryId = id,
+                                name = name,
+                                breweryType = breweryType,
+                                city = city,
+                                state = state,
+                                country = country
+                            )
+                        )
+                    }
+                    
+                    // Update the brewery in the list
+                    val updatedBreweries = _uiState.value.breweries.map { brewery ->
+                        if (brewery.id == id) {
+                            BreweryListItem(
+                                id = id,
+                                name = name,
+                                breweryType = breweryType,
+                                city = city,
+                                state = state,
+                                country = country
+                            )
+                        } else {
+                            brewery
+                        }
+                    }.sortedBy { it.name }
+                    
+                    // Update selected brewery if it's the one being edited
+                    val updatedSelectedBrewery = if (_uiState.value.selectedBrewery?.id == id) {
+                        BreweryDetail(
+                            id = id,
+                            name = name,
+                            breweryType = breweryType,
+                            street = street,
+                            address1 = existingBrewery.address1,
+                            address2 = existingBrewery.address2,
+                            address3 = existingBrewery.address3,
+                            city = city,
+                            state = state,
+                            countyProvince = existingBrewery.countyProvince,
+                            stateProvince = existingBrewery.stateProvince,
+                            postalCode = postalCode,
+                            country = country,
+                            longitude = existingBrewery.longitude,
+                            latitude = existingBrewery.latitude,
+                            phone = phone,
+                            websiteUrl = websiteUrl,
+                            updatedAt = existingBrewery.updatedAt,
+                            createdAt = existingBrewery.createdAt
+                        )
+                    } else {
+                        _uiState.value.selectedBrewery
+                    }
+                    
+                    _uiState.value = _uiState.value.copy(
+                        breweries = updatedBreweries,
+                        selectedBrewery = updatedSelectedBrewery,
+                        showEditBreweryDialog = false,
+                        breweryToEdit = null
+                    )
+                    applyFilters()
+                }
+            } catch (e: Exception) {
+                //Error Handling(TODO)
+            }
+        }
+    }
+
+    fun deleteBrewery(id: String, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                // Check if brewery is in favorites and remove it
+                val favorite = favoritesRepository.isFavorite(id)
+                if (favorite) {
+                    val favoriteEntity = _uiState.value.favorites.find { it.id == id }
+                    if (favoriteEntity != null) {
+                        favoritesRepository.removeFavorite(
+                            FavoriteBreweryEntity(
+                                breweryId = favoriteEntity.id,
+                                name = favoriteEntity.name,
+                                breweryType = favoriteEntity.breweryType,
+                                city = favoriteEntity.city,
+                                state = favoriteEntity.state,
+                                country = favoriteEntity.country
+                            )
+                        )
+                    }
+                }
+                
+                // Delete from database
+                breweryDao.deleteById(id)
+                
+                // Remove from breweries list
+                val updatedBreweries = _uiState.value.breweries.filter { it.id != id }
+                
+                // Clear selected brewery if it's the one being deleted
+                val updatedSelectedBrewery = if (_uiState.value.selectedBrewery?.id == id) {
+                    null
+                } else {
+                    _uiState.value.selectedBrewery
+                }
+                
+                _uiState.value = _uiState.value.copy(
+                    breweries = updatedBreweries,
+                    selectedBrewery = updatedSelectedBrewery,
+                    showDeleteDialog = false
+                )
+                applyFilters()
+                
+                // Call the completion callback to navigate back
+                onComplete()
             } catch (e: Exception) {
                 //Error Handling(TODO)
             }
