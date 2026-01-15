@@ -141,7 +141,10 @@ data class BriefBeerUiState(
     val searchQuery: String = "",
     val selectedTypeFilter: String? = null,
     val isLoading: Boolean = false,
-    val showAddBreweryDialog: Boolean = false
+    val showAddBreweryDialog: Boolean = false,
+    val showEditBreweryDialog: Boolean = false,
+    val breweryToEdit: BreweryDetail? = null,
+    val showDeleteDialog: Boolean = false
 )
 
 class BriefBeerViewModel(application: Application) : AndroidViewModel(application) {
@@ -531,7 +534,7 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         phone = cachedBrewery.phone,
                         websiteUrl = cachedBrewery.websiteUrl,
                         updatedAt = cachedBrewery.updatedAt,
-                        createdAt = cachedBrewery.createdAt
+createdAt = cachedBrewery.createdAt
                     )
                     _uiState.value = _uiState.value.copy(selectedBrewery = detail)
                 }
@@ -578,6 +581,29 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun hideAddBreweryDialog() {
         _uiState.value = _uiState.value.copy(showAddBreweryDialog = false)
+    }
+
+    fun showEditBreweryDialog() {
+        val brewery = _uiState.value.selectedBrewery
+        _uiState.value = _uiState.value.copy(
+            showEditBreweryDialog = true,
+            breweryToEdit = brewery
+        )
+    }
+
+    fun hideEditBreweryDialog() {
+        _uiState.value = _uiState.value.copy(
+            showEditBreweryDialog = false,
+            breweryToEdit = null
+        )
+    }
+
+    fun showDeleteDialog() {
+        _uiState.value = _uiState.value.copy(showDeleteDialog = true)
+    }
+
+    fun hideDeleteDialog() {
+        _uiState.value = _uiState.value.copy(showDeleteDialog = false)
     }
 
     fun addBrewery(
@@ -635,6 +661,168 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     showAddBreweryDialog = false
                 )
                 applyFilters()
+            } catch (e: Exception) {
+                //Error Handling(TODO)
+            }
+        }
+    }
+
+    fun updateBrewery(
+        id: String,
+        name: String,
+        breweryType: String,
+        city: String,
+        country: String,
+        state: String = "",
+        street: String? = null,
+        postalCode: String? = null,
+        phone: String? = null,
+        websiteUrl: String? = null
+    ) {
+        viewModelScope.launch {
+            try {
+                val existingBrewery = breweryDao.getById(id)
+                if (existingBrewery != null) {
+                    val updatedEntity = BreweryEntity(
+                        id = id,
+                        name = name,
+                        breweryType = breweryType,
+                        street = street,
+                        address1 = existingBrewery.address1,
+                        address2 = existingBrewery.address2,
+                        address3 = existingBrewery.address3,
+                        city = city,
+                        state = if (state.isNotEmpty()) state else null,
+                        countyProvince = existingBrewery.countyProvince,
+                        stateProvince = existingBrewery.stateProvince,
+                        postalCode = postalCode,
+                        country = country,
+                        longitude = existingBrewery.longitude,
+                        latitude = existingBrewery.latitude,
+                        phone = phone,
+                        websiteUrl = websiteUrl,
+                        updatedAt = existingBrewery.updatedAt,
+                        createdAt = existingBrewery.createdAt,
+                        qr = existingBrewery.qr
+                    )
+                    
+                    breweryDao.insert(updatedEntity)
+                    
+                    // Update in favorites if it's favorited
+                    val isFavorite = favoritesRepository.isFavorite(id)
+                    if (isFavorite) {
+                        favoritesRepository.addFavorite(
+                            FavoriteBreweryEntity(
+                                breweryId = id,
+                                name = name,
+                                breweryType = breweryType,
+                                city = city,
+                                state = state,
+                                country = country
+                            )
+                        )
+                    }
+                    
+                    // Update the brewery in the list
+                    val updatedBreweries = _uiState.value.breweries.map { brewery ->
+                        if (brewery.id == id) {
+                            BreweryListItem(
+                                id = id,
+                                name = name,
+                                breweryType = breweryType,
+                                city = city,
+                                state = state,
+                                country = country
+                            )
+                        } else {
+                            brewery
+                        }
+                    }.sortedBy { it.name }
+                    
+                    // Update selected brewery if it's the one being edited
+                    val updatedSelectedBrewery = if (_uiState.value.selectedBrewery?.id == id) {
+                        BreweryDetail(
+                            id = id,
+                            name = name,
+                            breweryType = breweryType,
+                            street = street,
+                            address1 = existingBrewery.address1,
+                            address2 = existingBrewery.address2,
+                            address3 = existingBrewery.address3,
+                            city = city,
+                            state = state,
+                            countyProvince = existingBrewery.countyProvince,
+                            stateProvince = existingBrewery.stateProvince,
+                            postalCode = postalCode,
+                            country = country,
+                            longitude = existingBrewery.longitude,
+                            latitude = existingBrewery.latitude,
+                            phone = phone,
+                            websiteUrl = websiteUrl,
+                            updatedAt = existingBrewery.updatedAt,
+                            createdAt = existingBrewery.createdAt
+                        )
+                    } else {
+                        _uiState.value.selectedBrewery
+                    }
+                    
+                    _uiState.value = _uiState.value.copy(
+                        breweries = updatedBreweries,
+                        selectedBrewery = updatedSelectedBrewery,
+                        showEditBreweryDialog = false,
+                        breweryToEdit = null
+                    )
+                    applyFilters()
+                }
+            } catch (e: Exception) {
+                //Error Handling(TODO)
+            }
+        }
+    }
+
+    fun deleteBrewery(id: String, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                // Check if brewery is in favorites and remove it
+                val favorite = favoritesRepository.isFavorite(id)
+                if (favorite) {
+                    val favoriteEntity = _uiState.value.favorites.find { it.id == id }
+                    if (favoriteEntity != null) {
+                        favoritesRepository.removeFavorite(
+                            FavoriteBreweryEntity(
+                                breweryId = favoriteEntity.id,
+                                name = favoriteEntity.name,
+                                breweryType = favoriteEntity.breweryType,
+                                city = favoriteEntity.city,
+                                state = favoriteEntity.state,
+                                country = favoriteEntity.country
+                            )
+                        )
+                    }
+                }
+                
+                // Delete from database
+                breweryDao.deleteById(id)
+                
+                // Remove from breweries list
+                val updatedBreweries = _uiState.value.breweries.filter { it.id != id }
+                
+                // Clear selected brewery if it's the one being deleted
+                val updatedSelectedBrewery = if (_uiState.value.selectedBrewery?.id == id) {
+                    null
+                } else {
+                    _uiState.value.selectedBrewery
+                }
+                
+                _uiState.value = _uiState.value.copy(
+                    breweries = updatedBreweries,
+                    selectedBrewery = updatedSelectedBrewery,
+                    showDeleteDialog = false
+                )
+                applyFilters()
+                
+                // Call the completion callback to navigate back
+                onComplete()
             } catch (e: Exception) {
                 //Error Handling(TODO)
             }

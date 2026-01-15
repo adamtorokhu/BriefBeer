@@ -21,6 +21,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
@@ -211,12 +213,39 @@ fun BriefBeerNavHost(
             val isFavorite = uiState.selectedBrewery?.let { brewery ->
                 uiState.favorites.any { it.id == brewery.id }
             } ?: false
+            
+            // Check if the brewery is editable (custom brewery)
+            val isEditable = uiState.selectedBrewery?.id?.startsWith("custom_") == true
+            
+            if (uiState.showEditBreweryDialog && uiState.breweryToEdit != null) {
+                EditBreweryDialog(
+                    brewery = uiState.breweryToEdit,
+                    onDismiss = viewModel::hideEditBreweryDialog,
+                    onUpdateBrewery = viewModel::updateBrewery
+                )
+            }
+            
+            if (uiState.showDeleteDialog && uiState.selectedBrewery != null) {
+                DeleteBreweryDialog(
+                    breweryName = uiState.selectedBrewery.name,
+                    onDismiss = viewModel::hideDeleteDialog,
+                    onConfirmDelete = {
+                        viewModel.deleteBrewery(uiState.selectedBrewery.id) {
+                            navController.popBackStack()
+                        }
+                    }
+                )
+            }
+            
             BreweryDetailScreen(
                 detail = uiState.selectedBrewery,
                 isFavorite = isFavorite,
+                isEditable = isEditable,
                 onToggleFavorite = { item ->
                     viewModel.toggleFavorite(item)
-                }
+                },
+                onEditBrewery = viewModel::showEditBreweryDialog,
+                onDeleteBrewery = viewModel::showDeleteDialog
             )
         }
         composable(BriefBeerDestination.BarcodeScanner.route) {
@@ -329,7 +358,10 @@ fun FavoritesScreen(
 fun BreweryDetailScreen(
     detail: BreweryDetail?,
     isFavorite: Boolean = false,
-    onToggleFavorite: (BreweryListItem) -> Unit
+    isEditable: Boolean = false,
+    onToggleFavorite: (BreweryListItem) -> Unit,
+    onEditBrewery: () -> Unit = {},
+    onDeleteBrewery: () -> Unit = {}
 ) {
     if (detail == null) {
         Box(
@@ -349,6 +381,7 @@ fun BreweryDetailScreen(
     BreweryDetailContent(
         detail = detail,
         isFavorite = isFavorite,
+        isEditable = isEditable,
         onToggleFavorite = {
             onToggleFavorite(
                 BreweryListItem(
@@ -360,7 +393,9 @@ fun BreweryDetailScreen(
                     country = detail.country ?: ""
                 )
             )
-        }
+        },
+        onEditBrewery = onEditBrewery,
+        onDeleteBrewery = onDeleteBrewery
     )
 }
 
@@ -605,7 +640,10 @@ fun BreweryFavoritesContent(
 fun BreweryDetailContent(
     detail: BreweryDetail,
     isFavorite: Boolean = false,
-    onToggleFavorite: () -> Unit
+    isEditable: Boolean = false,
+    onToggleFavorite: () -> Unit,
+    onEditBrewery: () -> Unit = {},
+    onDeleteBrewery: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -655,15 +693,44 @@ fun BreweryDetailContent(
                         }
                     }
                     
-                    FloatingActionButton(
-                        onClick = onToggleFavorite,
-                        modifier = Modifier.size(56.dp),
-                        containerColor = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "Favorite"
-                        )
+                        if (isEditable) {
+                            FloatingActionButton(
+                                onClick = onDeleteBrewery,
+                                modifier = Modifier.size(56.dp),
+                                containerColor = MaterialTheme.colorScheme.error
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete Brewery"
+                                )
+                            }
+                            
+                            FloatingActionButton(
+                                onClick = onEditBrewery,
+                                modifier = Modifier.size(56.dp),
+                                containerColor = MaterialTheme.colorScheme.secondary
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Brewery"
+                                )
+                            }
+                        }
+                        
+                        FloatingActionButton(
+                            onClick = onToggleFavorite,
+                            modifier = Modifier.size(56.dp),
+                            containerColor = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        ) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = "Favorite"
+                            )
+                        }
                     }
                 }
                 
@@ -1528,6 +1595,444 @@ fun AddBreweryDialog(
                 )
             ) {
                 Text("Add Brewery")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditBreweryDialog(
+    brewery: BreweryDetail,
+    onDismiss: () -> Unit,
+    onUpdateBrewery: (String, String, String, String, String, String, String?, String?, String?, String?) -> Unit
+) {
+    var name by remember { mutableStateOf(brewery.name) }
+    var breweryType by remember { mutableStateOf(brewery.breweryType) }
+    var city by remember { mutableStateOf(brewery.city ?: "") }
+    var country by remember { mutableStateOf(brewery.country ?: "") }
+    var state by remember { mutableStateOf(brewery.state ?: "") }
+    var street by remember { mutableStateOf(brewery.street ?: "") }
+    var postalCode by remember { mutableStateOf(brewery.postalCode ?: "") }
+    var phone by remember { mutableStateOf(brewery.phone ?: "") }
+    var websiteUrl by remember { mutableStateOf(brewery.websiteUrl ?: "") }
+
+    val breweryTypes = listOf("micro", "nano", "regional", "brewpub", "large", "planning", "bar", "contract", "proprietor", "closed")
+
+    val countries = listOf(
+        "🇦🇫 Afghanistan",
+        "🇦🇱 Albania",
+        "🇩🇿 Algeria",
+        "🇦🇩 Andorra",
+        "🇦🇴 Angola",
+        "🇦🇬 Antigua and Barbuda",
+        "🇦🇷 Argentina",
+        "🇦🇲 Armenia",
+        "🇦🇺 Australia",
+        "🇦🇹 Austria",
+        "🇦🇿 Azerbaijan",
+        "🇧🇸 Bahamas",
+        "🇧🇭 Bahrain",
+        "🇧🇩 Bangladesh",
+        "🇧🇧 Barbados",
+        "🇧🇾 Belarus",
+        "🇧🇪 Belgium",
+        "🇧🇿 Belize",
+        "🇧🇯 Benin",
+        "🇧🇹 Bhutan",
+        "🇧🇴 Bolivia",
+        "🇧🇦 Bosnia and Herzegovina",
+        "🇧🇼 Botswana",
+        "🇧🇷 Brazil",
+        "🇧🇳 Brunei",
+        "🇧🇬 Bulgaria",
+        "🇧🇫 Burkina Faso",
+        "🇧🇮 Burundi",
+        "🇰🇭 Cambodia",
+        "🇨🇲 Cameroon",
+        "🇨🇦 Canada",
+        "🇨🇻 Cape Verde",
+        "🇨🇫 Central African Republic",
+        "🇹🇩 Chad",
+        "🇨🇱 Chile",
+        "🇨🇳 China",
+        "🇨🇴 Colombia",
+        "🇰🇲 Comoros",
+        "🇨🇬 Congo",
+        "🇨🇷 Costa Rica",
+        "🇭🇷 Croatia",
+        "🇨🇺 Cuba",
+        "🇨🇾 Cyprus",
+        "🇨🇿 Czech Republic",
+        "🇩🇰 Denmark",
+        "🇩🇯 Djibouti",
+        "🇩🇲 Dominica",
+        "🇩🇴 Dominican Republic",
+        "🇪🇨 Ecuador",
+        "🇪🇬 Egypt",
+        "🇸🇻 El Salvador",
+        "🇬🇶 Equatorial Guinea",
+        "🇪🇷 Eritrea",
+        "🇪🇪 Estonia",
+        "🇪🇹 Ethiopia",
+        "🇫🇯 Fiji",
+        "🇫🇮 Finland",
+        "🇫🇷 France",
+        "🇬🇦 Gabon",
+        "🇬🇲 Gambia",
+        "🇬🇪 Georgia",
+        "🇩🇪 Germany",
+        "🇬🇭 Ghana",
+        "🇬🇷 Greece",
+        "🇬🇩 Grenada",
+        "🇬🇹 Guatemala",
+        "🇬🇳 Guinea",
+        "🇬🇼 Guinea-Bissau",
+        "🇬🇾 Guyana",
+        "🇭🇹 Haiti",
+        "🇭🇳 Honduras",
+        "🇭🇺 Hungary",
+        "🇮🇸 Iceland",
+        "🇮🇳 India",
+        "🇮🇩 Indonesia",
+        "🇮🇷 Iran",
+        "🇮🇶 Iraq",
+        "🇮🇪 Ireland",
+        "🇮🇱 Israel",
+        "🇮🇹 Italy",
+        "🇯🇲 Jamaica",
+        "🇯🇵 Japan",
+        "🇯🇴 Jordan",
+        "🇰🇿 Kazakhstan",
+        "🇰🇪 Kenya",
+        "🇰🇮 Kiribati",
+        "🇰🇵 Korea North",
+        "🇰🇷 Korea South",
+        "🇰🇼 Kuwait",
+        "🇰🇬 Kyrgyzstan",
+        "🇱🇦 Laos",
+        "🇱🇻 Latvia",
+        "🇱🇧 Lebanon",
+        "🇱🇸 Lesotho",
+        "🇱🇷 Liberia",
+        "🇱🇾 Libya",
+        "🇱🇮 Liechtenstein",
+        "🇱🇹 Lithuania",
+        "🇱🇺 Luxembourg",
+        "🇲🇰 Macedonia",
+        "🇲🇬 Madagascar",
+        "🇲🇼 Malawi",
+        "🇲🇾 Malaysia",
+        "🇲🇻 Maldives",
+        "🇲🇱 Mali",
+        "🇲🇹 Malta",
+        "🇲🇭 Marshall Islands",
+        "🇲🇷 Mauritania",
+        "🇲🇺 Mauritius",
+        "🇲🇽 Mexico",
+        "🇫🇲 Micronesia",
+        "🇲🇩 Moldova",
+        "🇲🇨 Monaco",
+        "🇲🇳 Mongolia",
+        "🇲🇪 Montenegro",
+        "🇲🇦 Morocco",
+        "🇲🇿 Mozambique",
+        "🇲🇲 Myanmar",
+        "🇳🇦 Namibia",
+        "🇳🇷 Nauru",
+        "🇳🇵 Nepal",
+        "🇳🇱 Netherlands",
+        "🇳🇿 New Zealand",
+        "🇳🇮 Nicaragua",
+        "🇳🇪 Niger",
+        "🇳🇬 Nigeria",
+        "🇳🇴 Norway",
+        "🇴🇲 Oman",
+        "🇵🇰 Pakistan",
+        "🇵🇼 Palau",
+        "🇵🇦 Panama",
+        "🇵🇬 Papua New Guinea",
+        "🇵🇾 Paraguay",
+        "🇵🇪 Peru",
+        "🇵🇭 Philippines",
+        "🇵🇱 Poland",
+        "🇵🇹 Portugal",
+        "🇶🇦 Qatar",
+        "🇷🇴 Romania",
+        "🇷🇺 Russia",
+        "🇷🇼 Rwanda",
+        "🇰🇳 Saint Kitts and Nevis",
+        "🇱🇨 Saint Lucia",
+        "🇻🇨 Saint Vincent",
+        "🇼🇸 Samoa",
+        "🇸🇲 San Marino",
+        "🇸🇹 Sao Tome",
+        "🇸🇦 Saudi Arabia",
+        "🇸🇳 Senegal",
+        "🇷🇸 Serbia",
+        "🇸🇨 Seychelles",
+        "🇸🇱 Sierra Leone",
+        "🇸🇬 Singapore",
+        "🇸🇰 Slovakia",
+        "🇸🇮 Slovenia",
+        "🇸🇧 Solomon Islands",
+        "🇸🇴 Somalia",
+        "🇿🇦 South Africa",
+        "🇸🇸 South Sudan",
+        "🇪🇸 Spain",
+        "🇱🇰 Sri Lanka",
+        "🇸🇩 Sudan",
+        "🇸🇷 Suriname",
+        "🇸🇿 Swaziland",
+        "🇸🇪 Sweden",
+        "🇨🇭 Switzerland",
+        "🇸🇾 Syria",
+        "🇹🇼 Taiwan",
+        "🇹🇯 Tajikistan",
+        "🇹🇿 Tanzania",
+        "🇹🇭 Thailand",
+        "🇹🇱 Timor-Leste",
+        "🇹🇬 Togo",
+        "🇹🇴 Tonga",
+        "🇹🇹 Trinidad and Tobago",
+        "🇹🇳 Tunisia",
+        "🇹🇷 Turkey",
+        "🇹🇲 Turkmenistan",
+        "🇹🇻 Tuvalu",
+        "🇺🇬 Uganda",
+        "🇺🇦 Ukraine",
+        "🇦🇪 United Arab Emirates",
+        "🇬🇧 United Kingdom",
+        "🇺🇸 United States",
+        "🇺🇾 Uruguay",
+        "🇺🇿 Uzbekistan",
+        "🇻🇺 Vanuatu",
+        "🇻🇦 Vatican City",
+        "🇻🇪 Venezuela",
+        "🇻🇳 Vietnam",
+        "🇾🇪 Yemen",
+        "🇿🇲 Zambia",
+        "🇿🇼 Zimbabwe"
+    )
+
+    var expandedBreweryType by remember { mutableStateOf(false) }
+    var expandedCountry by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Edit Brewery",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = expandedBreweryType,
+                    onExpandedChange = { expandedBreweryType = !expandedBreweryType }
+                ) {
+                    OutlinedTextField(
+                        value = breweryType,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Brewery Type *") },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Dropdown"
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        singleLine = true
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedBreweryType,
+                        onDismissRequest = { expandedBreweryType = false }
+                    ) {
+                        breweryTypes.forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text(type) },
+                                onClick = {
+                                    breweryType = type
+                                    expandedBreweryType = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = city,
+                    onValueChange = { city = it },
+                    label = { Text("City *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = expandedCountry,
+                    onExpandedChange = { expandedCountry = !expandedCountry }
+                ) {
+                    OutlinedTextField(
+                        value = country,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Country *") },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Dropdown"
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        singleLine = true
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedCountry,
+                        onDismissRequest = { expandedCountry = false }
+                    ) {
+                        countries.forEach { countryOption ->
+                            DropdownMenuItem(
+                                text = { Text(countryOption) },
+                                onClick = {
+                                    country = countryOption
+                                    expandedCountry = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = state,
+                    onValueChange = { state = it },
+                    label = { Text("State/Province") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = street,
+                    onValueChange = { street = it },
+                    label = { Text("Street Address") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = postalCode,
+                    onValueChange = { postalCode = it },
+                    label = { Text("Postal Code") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Phone") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = websiteUrl,
+                    onValueChange = { websiteUrl = it },
+                    label = { Text("Website URL") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotEmpty() && breweryType.isNotEmpty() && city.isNotEmpty() && country.isNotEmpty()) {
+                        onUpdateBrewery(
+                            brewery.id,
+                            name,
+                            breweryType,
+                            city,
+                            country,
+                            state,
+                            street.takeIf { it.isNotEmpty() },
+                            postalCode.takeIf { it.isNotEmpty() },
+                            phone.takeIf { it.isNotEmpty() },
+                            websiteUrl.takeIf { it.isNotEmpty() }
+                        )
+                    }
+                },
+                enabled = name.isNotEmpty() && breweryType.isNotEmpty() && city.isNotEmpty() && country.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("Update Brewery")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun DeleteBreweryDialog(
+    breweryName: String,
+    onDismiss: () -> Unit,
+    onConfirmDelete: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Delete Brewery",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Text(
+                text = "Are you sure you want to delete \"$breweryName\"? This action cannot be undone.",
+                fontSize = 16.sp
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirmDelete,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("Delete")
             }
         },
         dismissButton = {
