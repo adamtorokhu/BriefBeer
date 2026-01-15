@@ -489,8 +489,67 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         // Fallback: keyword match in categories/name/brand (covers local languages a bit)
         val haystack = "$categories $name $brand"
         val beerKeywords = listOf(
-            "beer", "beers", "bier", "birra", "cerveza", "pivo", "öl", "olut", "piwo", "bere"
+            // English & Germanic
+            "beer", "beers",
+            "bier",
+            "öl", "ol",
+            "ale", "lager",
+
+            // Romance
+            "biere", "bière",
+            "cerveza", "cervezas",
+            "cerveja",
+            "birra", "birre",
+            "cervesa",
+            "bere",
+
+            // Slavic
+            "pivo",
+            "piwo",
+            "pyvo",
+            "bira",
+
+            // Uralic
+            "olut",
+            "sör",
+            "olu",
+
+            // Celtic
+            "beoir",
+            "leann",
+            "cwrw",
+
+            // Greek & Balkan
+            "mpyra", "býra", "μπύρα",
+            "birrë",
+
+            // Semitic
+            "bira", "בירה", "بيرة",
+
+            // Indo-Iranian
+            "beer",        // common loanword usage
+            "biyer",
+            "aabjo", "abjo", "آبجو",
+
+            // East Asian
+            "pijiu", "啤酒",
+            "biiru", "ビール",
+            "maekju", "맥주",
+
+            // Southeast Asian
+            "bia",
+            "bir",
+            "serbesa",
+
+            // African
+            "ubhiya",
+            "ọti oyinbo",
+
+            // Constructed & classical
+            "cerevisia",
+            "biero"
         )
+
         return beerKeywords.any { haystack.contains(it) }
     }
 
