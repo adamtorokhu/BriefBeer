@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -74,6 +75,7 @@ sealed class BriefBeerDestination(val route: String, val label: String) {
     data object BreweryList : BriefBeerDestination("brewery_list", "Breweries")
     data object Favorites : BriefBeerDestination("favorites", "Favorites")
     data object BreweryDetail : BriefBeerDestination("brewery_detail", "Brewery")
+    data object BarcodeScanner : BriefBeerDestination("barcode_scanner", "Scan Barcode")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -189,7 +191,10 @@ fun BriefBeerNavHost(
                 onToggleFavorite = viewModel::toggleFavorite,
                 onAddBrewery = viewModel::addBrewery,
                 onShowAddDialog = viewModel::showAddBreweryDialog,
-                onHideAddDialog = viewModel::hideAddBreweryDialog
+                onHideAddDialog = viewModel::hideAddBreweryDialog,
+                onScanBarcode = {
+                    navController.navigate(BriefBeerDestination.BarcodeScanner.route)
+                }
             )
         }
         composable(BriefBeerDestination.Favorites.route) {
@@ -214,6 +219,17 @@ fun BriefBeerNavHost(
                 }
             )
         }
+        composable(BriefBeerDestination.BarcodeScanner.route) {
+            BarcodeScannerScreen(
+                onBarcodeScanned = { barcode ->
+                    viewModel.searchByBarcode(barcode)
+                    navController.popBackStack()
+                },
+                onClose = {
+                    navController.popBackStack()
+                }
+            )
+        }
     }
 }
 
@@ -226,7 +242,8 @@ fun BreweryListScreen(
     onToggleFavorite: (BreweryListItem) -> Unit,
     onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?) -> Unit,
     onShowAddDialog: () -> Unit,
-    onHideAddDialog: () -> Unit
+    onHideAddDialog: () -> Unit,
+    onScanBarcode: () -> Unit
 ) {
     val types = remember(uiState.breweries) {
         uiState.breweries.map { it.breweryType }.distinct().filter { it.isNotEmpty() }.sorted()
@@ -262,6 +279,20 @@ fun BreweryListScreen(
         onToggleFavorite = onToggleFavorite,
         favoriteIds = favoriteIds
     )
+            
+            // Barcode Scanner FAB
+            FloatingActionButton(
+                onClick = onScanBarcode,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.secondary
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Scan Barcode"
+                )
+            }
             
             FloatingActionButton(
                 onClick = onShowAddDialog,

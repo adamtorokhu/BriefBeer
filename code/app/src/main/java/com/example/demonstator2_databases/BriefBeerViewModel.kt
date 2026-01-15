@@ -23,6 +23,7 @@ import com.google.gson.annotations.SerializedName
 import java.io.InputStreamReader
 
 private const val OPEN_BREWERY_DB_BASE_URL = "https://api.openbrewerydb.org/v1/"
+private const val OPEN_FOOD_FACTS_BASE_URL = "https://world.openfoodfacts.org/"
 
 // Data classes for Austria beers JSON
 data class AustriaBeerJson(
@@ -39,7 +40,8 @@ data class BreweryData(
     val location: String,
     val type: String?,
     val notes: String?,
-    val beers: List<BeerData>?
+    val beers: List<BeerData>?,
+    val qr: String?
 )
 
 data class BeerData(
@@ -115,6 +117,22 @@ interface OpenBreweryApiService {
     suspend fun searchBreweries(@Query("query") query: String): List<BreweryDto>
 }
 
+// Open Food Facts API data classes
+data class OpenFoodFactsResponse(
+    val status: Int?,
+    val product: OpenFoodFactsProduct?
+)
+
+data class OpenFoodFactsProduct(
+    val brands: String?,
+    val product_name: String?
+)
+
+interface OpenFoodFactsApiService {
+    @GET("api/v0/product/{barcode}.json")
+    suspend fun getProduct(@Path("barcode") barcode: String): OpenFoodFactsResponse
+}
+
 data class BriefBeerUiState(
     val breweries: List<BreweryListItem> = emptyList(),
     val filteredBreweries: List<BreweryListItem> = emptyList(),
@@ -133,6 +151,12 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         .addConverterFactory(GsonConverterFactory.create())
         .build()
         .create(OpenBreweryApiService::class.java)
+
+    private val foodFactsApi: OpenFoodFactsApiService = Retrofit.Builder()
+        .baseUrl(OPEN_FOOD_FACTS_BASE_URL)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(OpenFoodFactsApiService::class.java)
 
     private val favoritesRepository: FavoriteBreweryRepository
     private val breweryDao: BreweryDao
@@ -206,7 +230,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                             phone = null,
                             websiteUrl = null,
                             updatedAt = null,
-                            createdAt = null
+                            createdAt = null,
+                            qr = brewery.qr
                         )
                     )
                 }
@@ -300,7 +325,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         phone = dto.phone,
                         websiteUrl = dto.website_url,
                         updatedAt = dto.updated_at,
-                        createdAt = dto.created_at
+                        createdAt = dto.created_at,
+                        qr = null
                     )
                 })
 
@@ -337,6 +363,36 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
     fun onTypeFilterChange(type: String?) {
         _uiState.value = _uiState.value.copy(selectedTypeFilter = type)
         applyFilters()
+    }
+
+    fun searchByBarcode(barcode: String) {
+        viewModelScope.launch {
+            // First, try to find a brewery with this exact QR code
+            val breweryWithQr = breweryDao.getAll().find { it.qr == barcode }
+            
+            if (breweryWithQr != null) {
+                // Found a brewery with this QR code, search by its name
+                _uiState.value = _uiState.value.copy(searchQuery = breweryWithQr.name)
+            } else {
+                // No QR match, try Open Food Facts API
+                try {
+                    val response = foodFactsApi.getProduct(barcode)
+                    val brands = response.product?.brands
+                    
+                    if (!brands.isNullOrEmpty()) {
+                        // Found brand information, use it as search query
+                        _uiState.value = _uiState.value.copy(searchQuery = brands)
+                    } else {
+                        // No brand found, show "not found"
+                        _uiState.value = _uiState.value.copy(searchQuery = "not found")
+                    }
+                } catch (e: Exception) {
+                    // API call failed, show "not found"
+                    _uiState.value = _uiState.value.copy(searchQuery = "not found")
+                }
+            }
+            applyFilters()
+        }
     }
 
     private fun applyFilters() {
@@ -447,7 +503,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     phone = response.phone,
                     websiteUrl = response.website_url,
                     updatedAt = response.updated_at,
-                    createdAt = response.created_at
+                    createdAt = response.created_at,
+                    qr = null
                 ))
                 
                 _uiState.value = _uiState.value.copy(selectedBrewery = detail)
@@ -557,7 +614,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     phone = phone,
                     websiteUrl = websiteUrl,
                     updatedAt = null,
-                    createdAt = null
+                    createdAt = null,
+                    qr = null
                 )
                 
                 breweryDao.insert(breweryEntity)
