@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -85,8 +86,23 @@ sealed class BriefBeerDestination(val route: String, val label: String) {
 fun BriefBeerApp(viewModel: BriefBeerViewModel) {
     val navController = rememberNavController()
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.message, uiState.messageActionLabel) {
+        val msg = uiState.message ?: return@LaunchedEffect
+        val actionLabel = uiState.messageActionLabel
+        val result = snackbarHostState.showSnackbar(
+            message = msg,
+            actionLabel = actionLabel
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.performMessageAction()
+        }
+        viewModel.clearMessage()
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
             BriefBeerBottomBar(navController)
         },
@@ -285,7 +301,8 @@ fun BreweryListScreen(
     if (uiState.showAddBreweryDialog) {
         AddBreweryDialog(
             onDismiss = onHideAddDialog,
-            onAddBrewery = onAddBrewery
+            onAddBrewery = onAddBrewery,
+            prefill = uiState.addBreweryPrefill
         )
     }
     
@@ -1196,13 +1213,14 @@ fun BreweryDetailContent(
 @Composable
 fun AddBreweryDialog(
     onDismiss: () -> Unit,
-    onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?) -> Unit
+    onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?) -> Unit,
+    prefill: AddBreweryPrefill? = null
 ) {
-    var name by remember { mutableStateOf("") }
-    var breweryType by remember { mutableStateOf("") }
-    var city by remember { mutableStateOf("") }
-    var country by remember { mutableStateOf("") }
-    var state by remember { mutableStateOf("") }
+    var name by remember(prefill) { mutableStateOf(prefill?.name ?: "") }
+    var breweryType by remember(prefill) { mutableStateOf(prefill?.breweryType ?: "") }
+    var city by remember(prefill) { mutableStateOf(prefill?.city ?: "") }
+    var country by remember(prefill) { mutableStateOf(prefill?.country ?: "") }
+    var state by remember(prefill) { mutableStateOf(prefill?.state ?: "") }
     var street by remember { mutableStateOf("") }
     var postalCode by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -1425,6 +1443,14 @@ fun AddBreweryDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                val scannedQr = prefill?.qr
+                if (!scannedQr.isNullOrBlank()) {
+                    Text(
+                        text = "Scanned barcode: $scannedQr",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },

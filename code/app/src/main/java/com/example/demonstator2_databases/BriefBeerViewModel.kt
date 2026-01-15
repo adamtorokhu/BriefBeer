@@ -125,7 +125,12 @@ data class OpenFoodFactsResponse(
 
 data class OpenFoodFactsProduct(
     val brands: String?,
-    val product_name: String?
+    val product_name: String?,
+    // Examples: ["en:beers", "en:alcoholic-beverages", ...]
+    @SerializedName("categories_tags")
+    val categoriesTags: List<String>?,
+    // Freeform categories string (often comma-separated)
+    val categories: String?
 )
 
 interface OpenFoodFactsApiService {
@@ -144,7 +149,26 @@ data class BriefBeerUiState(
     val showAddBreweryDialog: Boolean = false,
     val showEditBreweryDialog: Boolean = false,
     val breweryToEdit: BreweryDetail? = null,
-    val showDeleteDialog: Boolean = false
+    val showDeleteDialog: Boolean = false,
+    // Transient UI message (snackbar)
+    val message: String? = null,
+    val messageActionLabel: String? = null,
+    val messageAction: UiMessageAction? = null,
+    // When we want to open Add Brewery from a scan, we store the suggested values here.
+    val addBreweryPrefill: AddBreweryPrefill? = null
+)
+
+enum class UiMessageAction {
+    ADD_BREWERY_FROM_SCAN
+}
+
+data class AddBreweryPrefill(
+    val name: String? = null,
+    val breweryType: String? = null,
+    val city: String? = null,
+    val country: String? = null,
+    val state: String? = null,
+    val qr: String? = null
 )
 
 class BriefBeerViewModel(application: Application) : AndroidViewModel(application) {
@@ -380,22 +404,94 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                 // No QR match, try Open Food Facts API
                 try {
                     val response = foodFactsApi.getProduct(barcode)
-                    val brands = response.product?.brands
-                    
-                    if (!brands.isNullOrEmpty()) {
-                        // Found brand information, use it as search query
-                        _uiState.value = _uiState.value.copy(searchQuery = brands)
+                    val product = response.product
+                    if (response.status != 1 || product == null) {
+                        _uiState.value = _uiState.value.copy(message = "Product not found")
+                        applyFilters()
+                        return@launch
+                    }
+
+                    // Only allow beers (based on OFF categories/tags/name).
+                    if (!isBeerProduct(product)) {
+                        _uiState.value = _uiState.value.copy(message = "Only beer products can be scanned")
+                        applyFilters()
+                        return@launch
+                    }
+
+                    val queryFromProduct =
+                        product.brands?.takeIf { it.isNotBlank() }
+                            ?: product.product_name?.takeIf { it.isNotBlank() }
+
+                    if (queryFromProduct != null) {
+                        _uiState.value = _uiState.value.copy(searchQuery = queryFromProduct)
+                        applyFilters()
+
+                        // If scanning a beer yields no matches, offer to add it.
+                        if (_uiState.value.filteredBreweries.isEmpty()) {
+                            _uiState.value = _uiState.value.copy(
+                                message = "Beer not found in your list. Add it?",
+                                messageActionLabel = "Add",
+                                messageAction = UiMessageAction.ADD_BREWERY_FROM_SCAN,
+                                addBreweryPrefill = AddBreweryPrefill(
+                                    name = queryFromProduct,
+                                    breweryType = "micro",
+                                    qr = barcode
+                                )
+                            )
+                        }
                     } else {
-                        // No brand found, show "not found"
-                        _uiState.value = _uiState.value.copy(searchQuery = "not found")
+                        // Beer is valid but no name/brand to search by -> offer add flow anyway.
+                        _uiState.value = _uiState.value.copy(
+                            message = "Beer found, but no name/brand. Add it manually?",
+                            messageActionLabel = "Add",
+                            messageAction = UiMessageAction.ADD_BREWERY_FROM_SCAN,
+                            addBreweryPrefill = AddBreweryPrefill(
+                                breweryType = "micro",
+                                qr = barcode
+                            )
+                        )
                     }
                 } catch (e: Exception) {
                     // API call failed, show "not found"
-                    _uiState.value = _uiState.value.copy(searchQuery = "not found")
+                    _uiState.value = _uiState.value.copy(message = "Scan failed (network or API error)")
                 }
             }
             applyFilters()
         }
+    }
+
+    fun clearMessage() {
+        _uiState.value = _uiState.value.copy(
+            message = null,
+            messageActionLabel = null,
+            messageAction = null
+        )
+    }
+
+    fun performMessageAction() {
+        when (_uiState.value.messageAction) {
+            UiMessageAction.ADD_BREWERY_FROM_SCAN -> {
+                _uiState.value = _uiState.value.copy(showAddBreweryDialog = true)
+            }
+            null -> Unit
+        }
+    }
+
+    private fun isBeerProduct(product: OpenFoodFactsProduct): Boolean {
+        val tags = product.categoriesTags.orEmpty().map { it.lowercase() }
+        val categories = (product.categories ?: "").lowercase()
+        val name = (product.product_name ?: "").lowercase()
+        val brand = (product.brands ?: "").lowercase()
+
+        // Strong signal: OFF category tags for beers
+        if (tags.any { it.endsWith(":beers") || it.contains(":beer") }) return true
+
+        // Fallback: keyword match in categories/name/brand (covers local languages a bit)
+        val haystack = "$categories $name $brand"
+        val beerKeywords = listOf(
+            "beer", "beers", "bier", "birra", "cerveza", "pivo", "öl", "olut", "piwo", "bere"
+        )
+        return beerKeywords.any { haystack.contains(it) }
     }
 
     private fun applyFilters() {
@@ -580,7 +676,7 @@ createdAt = cachedBrewery.createdAt
     }
 
     fun hideAddBreweryDialog() {
-        _uiState.value = _uiState.value.copy(showAddBreweryDialog = false)
+        _uiState.value = _uiState.value.copy(showAddBreweryDialog = false, addBreweryPrefill = null)
     }
 
     fun showEditBreweryDialog() {
@@ -620,6 +716,7 @@ createdAt = cachedBrewery.createdAt
         viewModelScope.launch {
             try {
                 val newId = "custom_${System.currentTimeMillis()}"
+                val qrFromScan = _uiState.value.addBreweryPrefill?.qr
                 
                 val breweryEntity = BreweryEntity(
                     id = newId,
@@ -641,7 +738,7 @@ createdAt = cachedBrewery.createdAt
                     websiteUrl = websiteUrl,
                     updatedAt = null,
                     createdAt = null,
-                    qr = null
+                    qr = qrFromScan
                 )
                 
                 breweryDao.insert(breweryEntity)
@@ -658,7 +755,8 @@ createdAt = cachedBrewery.createdAt
                 val updatedBreweries = (_uiState.value.breweries + newBrewery).sortedBy { it.name }
                 _uiState.value = _uiState.value.copy(
                     breweries = updatedBreweries,
-                    showAddBreweryDialog = false
+                    showAddBreweryDialog = false,
+                    addBreweryPrefill = null
                 )
                 applyFilters()
             } catch (e: Exception) {
