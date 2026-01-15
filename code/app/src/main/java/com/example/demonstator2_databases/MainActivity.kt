@@ -77,7 +77,7 @@ sealed class BriefBeerDestination(val route: String, val label: String) {
     data object BreweryList : BriefBeerDestination("brewery_list", "Breweries")
     data object Favorites : BriefBeerDestination("favorites", "Favorites")
     data object BreweryDetail : BriefBeerDestination("brewery_detail", "Brewery")
-    data object BarcodeScanner : BriefBeerDestination("barcode_scanner", "Scan Barcode")
+    data object BarcodeScanner : BriefBeerDestination("barcode_scanner", "Scan")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -132,6 +132,7 @@ fun BriefBeerApp(viewModel: BriefBeerViewModel) {
 fun BriefBeerBottomBar(navController: NavHostController) {
     val items = listOf(
         BriefBeerDestination.BreweryList,
+        BriefBeerDestination.BarcodeScanner,
         BriefBeerDestination.Favorites
     )
     NavigationBar(
@@ -143,10 +144,11 @@ fun BriefBeerBottomBar(navController: NavHostController) {
             val selected = currentDestination?.route == screen.route
             NavigationBarItem(
                 icon = {
-                    if (screen == BriefBeerDestination.BreweryList) {
-                        Icon(Icons.Default.List, contentDescription = screen.label)
-                    } else {
-                        Icon(Icons.Default.Favorite, contentDescription = screen.label)
+                    when (screen) {
+                        BriefBeerDestination.BreweryList -> Icon(Icons.Default.List, contentDescription = screen.label)
+                        BriefBeerDestination.BarcodeScanner -> Icon(Icons.Default.Search, contentDescription = screen.label)
+                        BriefBeerDestination.Favorites -> Icon(Icons.Default.Favorite, contentDescription = screen.label)
+                        else -> Icon(Icons.Default.List, contentDescription = screen.label)
                     }
                 },
                 label = { Text(screen.label) },
@@ -193,10 +195,7 @@ fun BriefBeerNavHost(
                 onToggleFavorite = viewModel::toggleFavorite,
                 onAddBrewery = viewModel::addBrewery,
                 onShowAddDialog = viewModel::showAddBreweryDialog,
-                onHideAddDialog = viewModel::hideAddBreweryDialog,
-                onScanBarcode = {
-                    navController.navigate(BriefBeerDestination.BarcodeScanner.route)
-                }
+                onHideAddDialog = viewModel::hideAddBreweryDialog
             )
         }
         composable(BriefBeerDestination.Favorites.route) {
@@ -252,10 +251,13 @@ fun BriefBeerNavHost(
             BarcodeScannerScreen(
                 onBarcodeScanned = { barcode ->
                     viewModel.searchByBarcode(barcode)
-                    navController.popBackStack()
-                },
-                onClose = {
-                    navController.popBackStack()
+                    navController.navigate(BriefBeerDestination.BreweryList.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             )
         }
@@ -271,8 +273,7 @@ fun BreweryListScreen(
     onToggleFavorite: (BreweryListItem) -> Unit,
     onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?) -> Unit,
     onShowAddDialog: () -> Unit,
-    onHideAddDialog: () -> Unit,
-    onScanBarcode: () -> Unit
+    onHideAddDialog: () -> Unit
 ) {
     val types = remember(uiState.breweries) {
         uiState.breweries.map { it.breweryType }.distinct().filter { it.isNotEmpty() }.sorted()
@@ -308,20 +309,6 @@ fun BreweryListScreen(
         onToggleFavorite = onToggleFavorite,
         favoriteIds = favoriteIds
     )
-            
-            // Barcode Scanner FAB
-            FloatingActionButton(
-                onClick = onScanBarcode,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(16.dp),
-                containerColor = MaterialTheme.colorScheme.secondary
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Scan Barcode"
-                )
-            }
             
             FloatingActionButton(
                 onClick = onShowAddDialog,
@@ -690,7 +677,7 @@ fun BreweryDetailContent(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             modifier = Modifier.padding(top = 4.dp)
                         )
-                        }
+                    }
                     }
                     
                     Row(
@@ -720,16 +707,16 @@ fun BreweryDetailContent(
                                 )
                             }
                         }
-                        
-                        FloatingActionButton(
-                            onClick = onToggleFavorite,
-                            modifier = Modifier.size(56.dp),
-                            containerColor = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                        ) {
-                            Icon(
-                                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                contentDescription = "Favorite"
-                            )
+                    
+                    FloatingActionButton(
+                        onClick = onToggleFavorite,
+                        modifier = Modifier.size(56.dp),
+                        containerColor = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    ) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = "Favorite"
+                        )
                         }
                     }
                 }

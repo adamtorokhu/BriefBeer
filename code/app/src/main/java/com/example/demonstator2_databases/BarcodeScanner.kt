@@ -10,7 +10,6 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,14 +24,11 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BarcodeScannerScreen(
-    onBarcodeScanned: (String) -> Unit,
-    onClose: () -> Unit
+    onBarcodeScanned: (String) -> Unit
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -54,45 +50,24 @@ fun BarcodeScannerScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Scan Barcode") },
-                navigationIcon = {
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            if (hasCameraPermission) {
-                CameraPreview(
-                    onBarcodeScanned = { barcode ->
-                        onBarcodeScanned(barcode)
-                    }
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (hasCameraPermission) {
+            CameraPreview(onBarcodeScanned = onBarcodeScanned)
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "Camera permission is required to scan barcodes",
+                    style = MaterialTheme.typography.bodyLarge
                 )
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "Camera permission is required to scan barcodes",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) {
-                        Text("Grant Permission")
-                    }
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) {
+                    Text("Grant Permission")
                 }
             }
         }
