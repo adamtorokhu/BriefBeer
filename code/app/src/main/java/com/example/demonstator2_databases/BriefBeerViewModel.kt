@@ -357,7 +357,20 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 })
 
-                _uiState.value = _uiState.value.copy(breweries = breweries, isLoading = false)
+                // After inserting API breweries, reload from database to include Austrian breweries
+                val allCachedBreweries = breweryDao.getAll()
+                val allBreweriesList = allCachedBreweries.map { entity ->
+                    BreweryListItem(
+                        id = entity.id,
+                        name = entity.name,
+                        breweryType = entity.breweryType ?: "",
+                        city = entity.city ?: "",
+                        state = entity.state ?: "",
+                        country = entity.country ?: ""
+                    )
+                }.sortedBy { it.name }
+                
+                _uiState.value = _uiState.value.copy(breweries = allBreweriesList, isLoading = false)
                 applyFilters()
             } catch (e: Exception) {
                 // If API fails, try to load from database
