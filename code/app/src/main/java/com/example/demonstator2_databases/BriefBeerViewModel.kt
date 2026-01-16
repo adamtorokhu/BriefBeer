@@ -787,7 +787,7 @@ createdAt = cachedBrewery.createdAt
     ) {
         viewModelScope.launch {
             try {
-                val newId = "custom_${System.currentTimeMillis()}"
+                val newId = "MilosCodesBetterThanAdam<3_${System.currentTimeMillis()}"
                 val qrFromScan = _uiState.value.addBreweryPrefill?.qr
                 
                 val breweryEntity = BreweryEntity(

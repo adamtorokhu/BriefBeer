@@ -91,11 +91,30 @@ fun BriefBeerApp(viewModel: BriefBeerViewModel) {
     LaunchedEffect(uiState.message, uiState.messageActionLabel) {
         val msg = uiState.message ?: return@LaunchedEffect
         val actionLabel = uiState.messageActionLabel
+        val action = uiState.messageAction
         val result = snackbarHostState.showSnackbar(
             message = msg,
             actionLabel = actionLabel
         )
         if (result == SnackbarResult.ActionPerformed) {
+            // If user tapped "Add" from the scanner flow, first navigate back to Breweries,
+            // then open the Add dialog.
+            if (action == UiMessageAction.ADD_BREWERY_FROM_SCAN) {
+                // Prefer popping the scanner off the back stack so we truly return to the list.
+                val popped = navController.popBackStack(
+                    route = BriefBeerDestination.BreweryList.route,
+                    inclusive = false
+                )
+                if (!popped) {
+                    navController.navigate(BriefBeerDestination.BreweryList.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            }
             viewModel.performMessageAction()
         }
         viewModel.clearMessage()
@@ -129,6 +148,25 @@ fun BriefBeerApp(viewModel: BriefBeerViewModel) {
                         }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                         }
+                    } else if (currentDestination == BriefBeerDestination.BarcodeScanner.route) {
+                        IconButton(onClick = {
+                            // Remove the scanner screen and return to the breweries list
+                            val popped = navController.popBackStack(
+                                route = BriefBeerDestination.BreweryList.route,
+                                inclusive = false
+                            )
+                            if (!popped) {
+                                navController.navigate(BriefBeerDestination.BreweryList.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        }
                     }
                 }
             )
@@ -148,7 +186,6 @@ fun BriefBeerApp(viewModel: BriefBeerViewModel) {
 fun BriefBeerBottomBar(navController: NavHostController) {
     val items = listOf(
         BriefBeerDestination.BreweryList,
-        BriefBeerDestination.BarcodeScanner,
         BriefBeerDestination.Favorites
     )
     NavigationBar(
@@ -162,7 +199,6 @@ fun BriefBeerBottomBar(navController: NavHostController) {
                 icon = {
                     when (screen) {
                         BriefBeerDestination.BreweryList -> Icon(Icons.Default.List, contentDescription = screen.label)
-                        BriefBeerDestination.BarcodeScanner -> Icon(Icons.Default.Search, contentDescription = screen.label)
                         BriefBeerDestination.Favorites -> Icon(Icons.Default.Favorite, contentDescription = screen.label)
                         else -> Icon(Icons.Default.List, contentDescription = screen.label)
                     }
@@ -185,15 +221,12 @@ fun BriefBeerBottomBar(navController: NavHostController) {
                             launchSingleTop = true
                         }
                     } else {
-                        // Only restore state when navigating TO Home and Favorites, not BarcodeScanner
-                        val shouldRestoreState = screen != BriefBeerDestination.BarcodeScanner
-                        
                         navController.navigate(screen.route) {
                             popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
                             }
                             launchSingleTop = true
-                            restoreState = shouldRestoreState
+                            restoreState = true
                         }
                     }
                 }
@@ -224,7 +257,8 @@ fun BriefBeerNavHost(
                 onToggleFavorite = viewModel::toggleFavorite,
                 onAddBrewery = viewModel::addBrewery,
                 onShowAddDialog = viewModel::showAddBreweryDialog,
-                onHideAddDialog = viewModel::hideAddBreweryDialog
+                onHideAddDialog = viewModel::hideAddBreweryDialog,
+                onScanBarcode = { navController.navigate(BriefBeerDestination.BarcodeScanner.route) }
             )
         }
         composable(BriefBeerDestination.Favorites.route) {
@@ -243,7 +277,7 @@ fun BriefBeerNavHost(
             } ?: false
             
             // Check if the brewery is editable (custom brewery)
-            val isEditable = uiState.selectedBrewery?.id?.startsWith("custom_") == true
+            val isEditable = uiState.selectedBrewery?.id?.startsWith("MilosCodesBetterThanAdam<3_") == true
             
             if (uiState.showEditBreweryDialog && uiState.breweryToEdit != null) {
                 EditBreweryDialog(
@@ -280,13 +314,6 @@ fun BriefBeerNavHost(
             BarcodeScannerScreen(
                 onBarcodeScanned = { barcode ->
                     viewModel.searchByBarcode(barcode)
-                    navController.navigate(BriefBeerDestination.BreweryList.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
                 }
             )
         }
@@ -302,7 +329,8 @@ fun BreweryListScreen(
     onToggleFavorite: (BreweryListItem) -> Unit,
     onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?) -> Unit,
     onShowAddDialog: () -> Unit,
-    onHideAddDialog: () -> Unit
+    onHideAddDialog: () -> Unit,
+    onScanBarcode: () -> Unit
 ) {
     val types = remember(uiState.breweries) {
         uiState.breweries.map { it.breweryType }.distinct().filter { it.isNotEmpty() }.sorted()
@@ -337,7 +365,8 @@ fun BreweryListScreen(
                 onTypeChange = onTypeChange,
                 onBreweryClick = onBreweryClick,
         onToggleFavorite = onToggleFavorite,
-        favoriteIds = favoriteIds
+        favoriteIds = favoriteIds,
+        onScanBarcode = onScanBarcode
     )
             
             FloatingActionButton(
@@ -427,7 +456,8 @@ fun BreweryGridContent(
     onTypeChange: (String?) -> Unit,
     onBreweryClick: (String) -> Unit,
     onToggleFavorite: (BreweryListItem) -> Unit,
-    favoriteIds: Set<String> = emptySet()
+    favoriteIds: Set<String> = emptySet(),
+    onScanBarcode: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -441,15 +471,31 @@ fun BreweryGridContent(
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchChange,
-            label = { Text("Search breweries") },
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 12.dp),
-            singleLine = true
-        )
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                label = { Text("Search breweries") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+
+            FilledTonalIconButton(
+                onClick = onScanBarcode,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Scan barcode"
+                )
+            }
+        }
         
         Row(
             modifier = Modifier
