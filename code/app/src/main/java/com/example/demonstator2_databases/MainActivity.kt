@@ -176,12 +176,25 @@ fun BriefBeerBottomBar(navController: NavHostController) {
                     unselectedTextColor = Color.White.copy(alpha = 0.7f)
                 ),
                 onClick = {
-                    navController.navigate(screen.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
+                    // Clear the selected brewery when navigating via bottom bar
+                    if (currentDestination?.route == BriefBeerDestination.BreweryDetail.route) {
+                        navController.navigate(screen.route) {
+                            popUpTo(screen.route) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
                         }
-                        launchSingleTop = true
-                        restoreState = true
+                    } else {
+                        // Only restore state when navigating TO Home and Favorites, not BarcodeScanner
+                        val shouldRestoreState = screen != BriefBeerDestination.BarcodeScanner
+                        
+                        navController.navigate(screen.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = shouldRestoreState
+                        }
                     }
                 }
             )
