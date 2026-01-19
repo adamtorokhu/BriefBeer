@@ -142,7 +142,8 @@ data class BriefBeerUiState(
     val breweries: List<BreweryListItem> = emptyList(),
     val filteredBreweries: List<BreweryListItem> = emptyList(),
     val favorites: List<BreweryListItem> = emptyList(),
-    val selectedBrewery: BreweryDetail? = null,
+    val breweryListSelectedBrewery: BreweryDetail? = null, // Selected brewery from Breweries page
+    val favoritesSelectedBrewery: BreweryDetail? = null, // Selected brewery from Favorites page
     val searchQuery: String = "",
     val selectedTypeFilter: String? = null,
     val isLoading: Boolean = false,
@@ -593,7 +594,7 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.value = _uiState.value.copy(filteredBreweries = filtered)
     }
 
-    fun selectBrewery(breweryId: String) {
+    fun selectBrewery(breweryId: String, parentRoute: String? = null) {
         if (breweryId.isEmpty()) return
         
         val brewery = _uiState.value.breweries.find { it.id == breweryId } 
@@ -626,7 +627,11 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         updatedAt = cachedBrewery.updatedAt,
                         createdAt = cachedBrewery.createdAt
                     )
-                    _uiState.value = _uiState.value.copy(selectedBrewery = detail)
+                    _uiState.value = when (parentRoute) {
+                        "brewery_list" -> _uiState.value.copy(breweryListSelectedBrewery = detail)
+                        "favorites" -> _uiState.value.copy(favoritesSelectedBrewery = detail)
+                        else -> _uiState.value
+                    }
                     return@launch
                 }
                 
@@ -678,7 +683,11 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     qr = null
                 ))
                 
-                _uiState.value = _uiState.value.copy(selectedBrewery = detail)
+                _uiState.value = when (parentRoute) {
+                    "brewery_list" -> _uiState.value.copy(breweryListSelectedBrewery = detail)
+                    "favorites" -> _uiState.value.copy(favoritesSelectedBrewery = detail)
+                    else -> _uiState.value
+                }
             } catch (e: Exception) {
                 // If API fails, try database again
                 val cachedBrewery = breweryDao.getById(breweryId)
@@ -702,16 +711,27 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         phone = cachedBrewery.phone,
                         websiteUrl = cachedBrewery.websiteUrl,
                         updatedAt = cachedBrewery.updatedAt,
-createdAt = cachedBrewery.createdAt
+                        createdAt = cachedBrewery.createdAt
                     )
-                    _uiState.value = _uiState.value.copy(selectedBrewery = detail)
+                    _uiState.value = when (parentRoute) {
+                        "brewery_list" -> _uiState.value.copy(breweryListSelectedBrewery = detail)
+                        "favorites" -> _uiState.value.copy(favoritesSelectedBrewery = detail)
+                        else -> _uiState.value
+                    }
                 }
             }
         }
     }
 
-    fun clearSelectedBrewery() {
-        _uiState.value = _uiState.value.copy(selectedBrewery = null)
+    fun clearSelectedBrewery(parentRoute: String? = null) {
+        _uiState.value = when (parentRoute) {
+            "brewery_list" -> _uiState.value.copy(breweryListSelectedBrewery = null)
+            "favorites" -> _uiState.value.copy(favoritesSelectedBrewery = null)
+            else -> _uiState.value.copy(
+                breweryListSelectedBrewery = null,
+                favoritesSelectedBrewery = null
+            )
+        }
     }
 
     fun toggleFavorite(item: BreweryListItem) {
@@ -752,7 +772,7 @@ createdAt = cachedBrewery.createdAt
     }
 
     fun showEditBreweryDialog() {
-        val brewery = _uiState.value.selectedBrewery
+        val brewery = _uiState.value.breweryListSelectedBrewery ?: _uiState.value.favoritesSelectedBrewery
         _uiState.value = _uiState.value.copy(
             showEditBreweryDialog = true,
             breweryToEdit = brewery
@@ -910,35 +930,44 @@ createdAt = cachedBrewery.createdAt
                     }.sortedBy { it.name }
                     
                     // Update selected brewery if it's the one being edited
-                    val updatedSelectedBrewery = if (_uiState.value.selectedBrewery?.id == id) {
-                        BreweryDetail(
-                            id = id,
-                            name = name,
-                            breweryType = breweryType,
-                            street = street,
-                            address1 = existingBrewery.address1,
-                            address2 = existingBrewery.address2,
-                            address3 = existingBrewery.address3,
-                            city = city,
-                            state = state,
-                            countyProvince = existingBrewery.countyProvince,
-                            stateProvince = existingBrewery.stateProvince,
-                            postalCode = postalCode,
-                            country = country,
-                            longitude = existingBrewery.longitude,
-                            latitude = existingBrewery.latitude,
-                            phone = phone,
-                            websiteUrl = websiteUrl,
-                            updatedAt = existingBrewery.updatedAt,
-                            createdAt = existingBrewery.createdAt
-                        )
+                    val updatedDetail = BreweryDetail(
+                        id = id,
+                        name = name,
+                        breweryType = breweryType,
+                        street = street,
+                        address1 = existingBrewery.address1,
+                        address2 = existingBrewery.address2,
+                        address3 = existingBrewery.address3,
+                        city = city,
+                        state = state,
+                        countyProvince = existingBrewery.countyProvince,
+                        stateProvince = existingBrewery.stateProvince,
+                        postalCode = postalCode,
+                        country = country,
+                        longitude = existingBrewery.longitude,
+                        latitude = existingBrewery.latitude,
+                        phone = phone,
+                        websiteUrl = websiteUrl,
+                        updatedAt = existingBrewery.updatedAt,
+                        createdAt = existingBrewery.createdAt
+                    )
+                    
+                    val updatedBreweryListSelected = if (_uiState.value.breweryListSelectedBrewery?.id == id) {
+                        updatedDetail
                     } else {
-                        _uiState.value.selectedBrewery
+                        _uiState.value.breweryListSelectedBrewery
+                    }
+                    
+                    val updatedFavoritesSelected = if (_uiState.value.favoritesSelectedBrewery?.id == id) {
+                        updatedDetail
+                    } else {
+                        _uiState.value.favoritesSelectedBrewery
                     }
                     
                     _uiState.value = _uiState.value.copy(
                         breweries = updatedBreweries,
-                        selectedBrewery = updatedSelectedBrewery,
+                        breweryListSelectedBrewery = updatedBreweryListSelected,
+                        favoritesSelectedBrewery = updatedFavoritesSelected,
                         showEditBreweryDialog = false,
                         breweryToEdit = null
                     )
@@ -978,15 +1007,22 @@ createdAt = cachedBrewery.createdAt
                 val updatedBreweries = _uiState.value.breweries.filter { it.id != id }
                 
                 // Clear selected brewery if it's the one being deleted
-                val updatedSelectedBrewery = if (_uiState.value.selectedBrewery?.id == id) {
+                val updatedBreweryListSelected = if (_uiState.value.breweryListSelectedBrewery?.id == id) {
                     null
                 } else {
-                    _uiState.value.selectedBrewery
+                    _uiState.value.breweryListSelectedBrewery
+                }
+                
+                val updatedFavoritesSelected = if (_uiState.value.favoritesSelectedBrewery?.id == id) {
+                    null
+                } else {
+                    _uiState.value.favoritesSelectedBrewery
                 }
                 
                 _uiState.value = _uiState.value.copy(
                     breweries = updatedBreweries,
-                    selectedBrewery = updatedSelectedBrewery,
+                    breweryListSelectedBrewery = updatedBreweryListSelected,
+                    favoritesSelectedBrewery = updatedFavoritesSelected,
                     showDeleteDialog = false
                 )
                 applyFilters()

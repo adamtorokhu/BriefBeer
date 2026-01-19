@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.ui.platform.LocalContext
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -123,7 +125,7 @@ fun BriefBeerApp(viewModel: BriefBeerViewModel) {
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
-            BriefBeerBottomBar(navController)
+            BriefBeerBottomBar(navController, viewModel, uiState)
         },
         topBar = {
             TopAppBar(
@@ -183,7 +185,7 @@ fun BriefBeerApp(viewModel: BriefBeerViewModel) {
 }
 
 @Composable
-fun BriefBeerBottomBar(navController: NavHostController) {
+fun BriefBeerBottomBar(navController: NavHostController, viewModel: BriefBeerViewModel, uiState: BriefBeerUiState) {
     val items = listOf(
         BriefBeerDestination.BreweryList,
         BriefBeerDestination.Favorites
@@ -212,21 +214,57 @@ fun BriefBeerBottomBar(navController: NavHostController) {
                     unselectedTextColor = Color.White.copy(alpha = 0.7f)
                 ),
                 onClick = {
-                    // Clear the selected brewery when navigating via bottom bar
-                    if (currentDestination?.route == BriefBeerDestination.BreweryDetail.route) {
-                        navController.navigate(screen.route) {
-                            popUpTo(screen.route) {
-                                inclusive = true
+                    val currentRoute = currentDestination?.route
+                    
+                    when {
+                        // If on detail view, navigate to the selected screen
+                        currentRoute == BriefBeerDestination.BreweryDetail.route -> {
+                            val previousRoute = navController.previousBackStackEntry?.destination?.route
+                            // If clicking the same page that opened the detail, just pop back
+                            if (screen.route == previousRoute) {
+                                viewModel.clearSelectedBrewery(screen.route)
+                                navController.popBackStack()
+                            } else {
+                                // Navigate to different page, keeping the state
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        inclusive = false
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
-                            launchSingleTop = true
                         }
-                    } else {
-                        navController.navigate(screen.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
+                        // If on BarcodeScanner, remove it completely and navigate to selected screen
+                        currentRoute == BriefBeerDestination.BarcodeScanner.route -> {
+                            // If navigating to start destination (Breweries), just pop back
+                            if (screen.route == navController.graph.findStartDestination().route) {
+                                navController.popBackStack()
+                            } else {
+                                // Navigate to other screens (like Favorites)
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        inclusive = false
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
-                            launchSingleTop = true
-                            restoreState = true
+                        }
+                        // Default navigation between main screens
+                        else -> {
+                            if (currentRoute != screen.route) {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        inclusive = false
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
                         }
                     }
                 }
@@ -246,12 +284,21 @@ fun BriefBeerNavHost(
         startDestination = BriefBeerDestination.BreweryList.route
     ) {
         composable(BriefBeerDestination.BreweryList.route) {
+            // If there's a selected brewery from this page, navigate to detail view
+            LaunchedEffect(uiState.breweryListSelectedBrewery) {
+                if (uiState.breweryListSelectedBrewery != null) {
+                    navController.navigate(BriefBeerDestination.BreweryDetail.route) {
+                        launchSingleTop = true
+                    }
+                }
+            }
+            
             BreweryListScreen(
                 uiState = uiState,
                 onSearchChange = viewModel::onSearchQueryChange,
                 onTypeChange = viewModel::onTypeFilterChange,
                 onBreweryClick = {
-                    viewModel.selectBrewery(it)
+                    viewModel.selectBrewery(it, BriefBeerDestination.BreweryList.route)
                     navController.navigate(BriefBeerDestination.BreweryDetail.route)
                 },
                 onToggleFavorite = viewModel::toggleFavorite,
@@ -262,22 +309,51 @@ fun BriefBeerNavHost(
             )
         }
         composable(BriefBeerDestination.Favorites.route) {
+            // If there's a selected brewery from this page, navigate to detail view
+            LaunchedEffect(uiState.favoritesSelectedBrewery) {
+                if (uiState.favoritesSelectedBrewery != null) {
+                    navController.navigate(BriefBeerDestination.BreweryDetail.route) {
+                        launchSingleTop = true
+                    }
+                }
+            }
+            
             FavoritesScreen(
                 uiState = uiState,
                 onBreweryClick = {
-                    viewModel.selectBrewery(it)
+                    viewModel.selectBrewery(it, BriefBeerDestination.Favorites.route)
                     navController.navigate(BriefBeerDestination.BreweryDetail.route)
                 },
                 onToggleFavorite = viewModel::toggleFavorite
             )
         }
         composable(BriefBeerDestination.BreweryDetail.route) {
-            val isFavorite = uiState.selectedBrewery?.let { brewery ->
+            // Determine which page we came from by checking backstack
+            val previousRoute = navController.previousBackStackEntry?.destination?.route
+            val parentRoute = when (previousRoute) {
+                BriefBeerDestination.BreweryList.route -> BriefBeerDestination.BreweryList.route
+                BriefBeerDestination.Favorites.route -> BriefBeerDestination.Favorites.route
+                else -> BriefBeerDestination.BreweryList.route
+            }
+            
+            val selectedBrewery = if (parentRoute == BriefBeerDestination.Favorites.route) {
+                uiState.favoritesSelectedBrewery
+            } else {
+                uiState.breweryListSelectedBrewery
+            }
+            
+            // Handle back button to clear selected brewery and navigate back
+            BackHandler {
+                viewModel.clearSelectedBrewery(parentRoute)
+                navController.popBackStack()
+            }
+            
+            val isFavorite = selectedBrewery?.let { brewery ->
                 uiState.favorites.any { it.id == brewery.id }
             } ?: false
             
             // Check if the brewery is editable (custom brewery)
-            val isEditable = uiState.selectedBrewery?.id?.startsWith("MilosCodesBetterThanAdam<3_") == true
+            val isEditable = selectedBrewery?.id?.startsWith("MilosCodesBetterThanAdam<3_") == true
             
             if (uiState.showEditBreweryDialog && uiState.breweryToEdit != null) {
                 EditBreweryDialog(
@@ -287,12 +363,12 @@ fun BriefBeerNavHost(
                 )
             }
             
-            if (uiState.showDeleteDialog && uiState.selectedBrewery != null) {
+            if (uiState.showDeleteDialog && selectedBrewery != null) {
                 DeleteBreweryDialog(
-                    breweryName = uiState.selectedBrewery.name,
+                    breweryName = selectedBrewery.name,
                     onDismiss = viewModel::hideDeleteDialog,
                     onConfirmDelete = {
-                        viewModel.deleteBrewery(uiState.selectedBrewery.id) {
+                        viewModel.deleteBrewery(selectedBrewery.id) {
                             navController.popBackStack()
                         }
                     }
@@ -300,7 +376,7 @@ fun BriefBeerNavHost(
             }
             
             BreweryDetailScreen(
-                detail = uiState.selectedBrewery,
+                detail = selectedBrewery,
                 isFavorite = isFavorite,
                 isEditable = isEditable,
                 onToggleFavorite = { item ->
