@@ -9,24 +9,36 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = OrangeSecondary,
+    secondary = BeerAmber,
+    tertiary = OrangeTertiary,
+    background = Color(0xFF2C1810),
+    surface = Color(0xFF3D2818),
+    surfaceVariant = Color(0xFF4A3320)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary = OrangePrimary,
+    secondary = BeerAmber,
+    tertiary = BeerCream,
+    background = BeerBackground,
+    surface = BeerCard,
+    surfaceVariant = BeerCream,
+    onPrimary = Color(0xFFFFFFFF),
+    onSecondary = Color(0xFFFFFFFF),
+    onBackground = BeerDark,
+    onSurface = BeerDark,
+    onSurfaceVariant = BeerDark.copy(alpha = 0.7f)
 )
 
 @Composable
 fun Demonstator2databasesTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

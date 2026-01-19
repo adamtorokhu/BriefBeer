@@ -1,0 +1,309 @@
+{
+  "regions": {
+    "Wien": {
+      "breweries": [
+        {
+          "name": "1516 Brewing",
+          "location": "Wien",
+          "type": "Brewpub",
+          "beers": [
+            { "name": "Helles" },
+            { "name": "Lager" },
+            { "name": "Hop Devil", "style": "india_pale_ale" },
+            { "name": "Eejit's Oatmeal Stout" },
+            { "name": "GrandQ", "style": "witbier" },
+            { "name": "Pearl Jade Stout", "style": "foreign_extra_stout" },
+            { "name": "Wedding Bells", "style": "vienna_lager" }
+          ]
+        },
+        {
+          "name": "Ottakringer",
+          "location": "Wien",
+          "beers": [
+            { "name": "Ottakringer Rotes Zwickl" },
+            { "name": "Ottakringer Goldfassl Spezial" }
+          ]
+        }
+      ]
+    },
+
+    "Niederösterreich": {
+      "breweries": [
+        {
+          "name": "Brauerei Schwechat",
+          "location": "Schwechat",
+          "beers": [
+            { "name": "Schwechater Zwickl", "style": "pilsener" }
+          ]
+        },
+        {
+          "name": "Bierwerkstatt Weitra",
+          "location": "Weitra",
+          "beers": [
+            { "name": "Hadmar" },
+            { "name": "Hadmar Bio" }
+          ]
+        },
+        {
+          "name": "Brauerei Schrems",
+          "location": "Schrems",
+          "beers": [
+            { "name": "Schremser Roggen" }
+          ]
+        }
+      ]
+    },
+
+    "Steiermark": {
+      "breweries": [
+        {
+          "name": "Handbrauerei Forstner",
+          "location": "Kalsdorf",
+          "notes": "Brewmaster Gerhard Forstner passed away in 2014",
+          "beers": [
+            { "name": "Slow 2", "style": "ale" },
+            { "name": "Styrian Ale", "style": "bitter_ale" },
+            { "name": "Wunder Bier", "style": "strong_ale" },
+            { "name": "Forstner Styrian Ale", "list": "1001 Beers Amber" },
+            { "name": "Forstner Triple 22", "list": "1001 Beers Amber" }
+          ]
+        },
+        {
+          "name": "Gösser Brauerei",
+          "location": "Göss (Leoben)",
+          "beers": [
+            { "name": "Gösser Märzen", "style": "maerzen" },
+            { "name": "Gösser Spezial" },
+            { "name": "Reininghaus Jahrganspils", "style": "pilsener" }
+          ]
+        },
+        {
+          "name": "Brauhaus Bevog",
+          "location": "Bad Radkersburg",
+          "beers": [
+            { "name": "Tak", "style": "pale_ale" },
+            { "name": "Ond", "style": "smoked_porter" }
+          ]
+        }
+      ]
+    },
+
+    "Oberösterreich": {
+      "breweries": [
+        {
+          "name": "Brauerei Schloss Eggenberg",
+          "location": "Vorchdorf (Salzkammergut)",
+          "beers": [
+            { "name": "Samichlaus", "style": "strong_lager" },
+            { "name": "Samichlaus Classic" },
+            { "name": "Samichlaus Hell" },
+            { "name": "Samichlaus Holzfass" },
+            { "name": "Urbock 23°", "style": "eisbock" },
+            { "name": "Hopfenkönig", "style": "pilsener" },
+            { "name": "Schloss Eggenberg Urbock 23°", "list": "1001 Beers Blond" },
+            { "name": "Samichlaus", "list": "1001 Beers Amber" }
+          ]
+        },
+        {
+          "name": "Brauerei Zipf",
+          "location": "Zipf",
+          "beers": [
+            { "name": "Zipfer Urtyp" },
+            { "name": "Zipfer Pils" },
+            { "name": "Zipfer Sparkling", "style": "dry_beer" },
+            { "name": "Edelweiss Hofbräu", "style": "hefeweizen" }
+          ]
+        },
+        {
+          "name": "Brauerei Baumgartner",
+          "location": "Schärding - Innviertel",
+          "beers": [
+            { "name": "Baumgartner Pils" },
+            { "name": "Baunti 1609 Lager" }
+          ]
+        },
+        {
+          "name": "Trappistenbrauerei Stift Engelszell",
+          "location": "Engelhartszell - Innviertel",
+          "beers": [
+            { "name": "Gregorius" },
+            { "name": "Benno" }
+          ]
+        },
+        {
+          "name": "Brauerei Ried",
+          "location": "Ried i. Innkreis - Innviertel",
+          "beers": [
+            { "name": "India Pale Ale" },
+            { "name": "Rieder XXX Weisse" }
+          ]
+        },
+        {
+          "name": "Brauerei Vitzthum",
+          "location": "Uttendorf - Innviertel",
+          "beers": [
+            { "name": "Uttendorf Pils" },
+            { "name": "Uttendorf Fallstaff" },
+            { "name": "Einhundert 100 Bitterpils", "list": "1001 Beers Blond" }
+          ]
+        },
+        {
+          "name": "Brauerei Hofstetten",
+          "location": "St. Martin (Adsdorf) - Mühlviertel",
+          "beers": [
+            { "name": "Hofstettner Kübelbier" },
+            { "name": "Granitbock" }
+          ]
+        },
+        {
+          "name": "Freistädter Brauhaus",
+          "location": "Freistadt (Mühlviertel)",
+          "beers": [
+            { "name": "Freistädter Rotschopf", "list": "1001 Beers Amber" }
+          ]
+        },
+        {
+          "name": "Stiftsbrauerei Schlägl",
+          "location": "Schlägl (Mühlviertel)",
+          "beers": [
+            { "name": "Schlägl Doppel Bock", "list": "1001 Beers Amber" }
+          ]
+        }
+      ]
+    },
+
+    "Salzburg": {
+      "breweries": [
+        {
+          "name": "Hofbräu Kaltenhausen",
+          "location": "Kaltenhausen (zu Hallein)",
+          "notes": "Closed by Heineken/Brau Union; brewing relocated to Zipfer",
+          "beers": [
+            { "name": "Edelweiss Hofbräu", "style": "hefeweizen" },
+            { "name": "Edelweiss Gamsbock", "style": "weizenbock", "list": "1001 Beers Blond" },
+            { "name": "Bernstein", "style": "lager" },
+            { "name": "Kaltenhausen Kellerbier" },
+            { "name": "Riesling Style" }
+          ]
+        },
+        {
+          "name": "Stieglbrauerei zu Salzburg",
+          "location": "Salzburg",
+          "beers": [
+            { "name": "Stiegl Goldbräu", "style": "maerzen", "list": "1001 Beers Blond" },
+            { "name": "Stiegl Paracelsus" },
+            { "name": "Stiegl Weisse Naturtrüb" },
+            { "name": "Double IPA" }
+          ]
+        },
+        {
+          "name": "Trumer Privatbrauerei",
+          "location": "Obertrum",
+          "beers": [
+            { "name": "Trumer Pils", "style": "pilsener", "list": "1001 Beers Blond" }
+          ]
+        },
+        {
+          "name": "Die Weisse Brauerei",
+          "location": "Salzburg",
+          "beers": [
+            { "name": "Die Weisse Hell" },
+            { "name": "Die Weisse Dunkel" }
+          ]
+        },
+        {
+          "name": "Augustiner Bräu Kloster Mülln",
+          "location": "Salzburg",
+          "beers": [
+            { "name": "Augustiner Märzen" }
+          ]
+        },
+        {
+          "name": "Brauhaus Gusswerk",
+          "location": "Hof bei Salzburg",
+          "beers": [
+            { "name": "Edelguss" },
+            { "name": "Nicobar IPA" },
+            { "name": "Cerevinum" },
+            { "name": "Dies Irae", "style": "barley_wine" }
+          ]
+        }
+      ]
+    },
+
+    "Kärnten": {
+      "breweries": [
+        {
+          "name": "Privatbrauerei Loncium",
+          "location": "Kötschach-Mauthen",
+          "beers": [
+            { "name": "Austrian Amber Lager" },
+            { "name": "Schwarze Gams" }
+          ]
+        }
+      ]
+    },
+
+    "Tirol": {
+      "breweries": [
+        {
+          "name": "Familienbrauerei Huber",
+          "location": "St. Johann",
+          "beers": [
+            { "name": "Huber Bräu Meisterpils" },
+            { "name": "Huber Bräu Augustinus" },
+            { "name": "Huber Bock" }
+          ]
+        },
+        {
+          "name": "Zillertal Bier",
+          "location": "Zell am Ziller",
+          "beers": [
+            { "name": "Zillertal Weissbier Bock" },
+            { "name": "Zillertal Gauder Bock" }
+          ]
+        }
+      ]
+    },
+
+    "Vorarlberg": {
+      "breweries": [
+        {
+          "name": "Brauerei Egg",
+          "location": "Egg",
+          "beers": [
+            { "name": "Egger Edel Pils" },
+            { "name": "Egger Wälder Senn" }
+          ]
+        },
+        {
+          "name": "Mohrenbrauerei",
+          "location": "Dornbirn",
+          "beers": [
+            { "name": "Mohren Spezial" },
+            { "name": "Mohren Bockbier" },
+            { "name": "Mohren Kellerbier", "style": "unfiltered zwickl" }
+          ]
+        }
+      ]
+    }
+  },
+  "lists": {
+    "1001 Beers Amber": [
+      "Freistädter Rotschopf",
+      "Hadmar Bio",
+      "Samichlaus",
+      "Schlägl Doppel Bock",
+      "Forstner Styrian Ale",
+      "Forstner Triple 22"
+    ],
+    "1001 Beers Blond": [
+      "Edelweiss Gamsbock",
+      "Einhundert 100 Bitterpils",
+      "Schwechater Zwickl",
+      "Stiegl Goldbräu",
+      "Trumer Pils",
+      "Schloss Eggenberg Urbock 23°"
+    ]
+  }
+}

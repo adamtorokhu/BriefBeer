@@ -82,14 +82,6 @@ fun CameraPreview(
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     var hasScanned by remember { mutableStateOf(false) }
-    var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
-    
-    // Cleanup camera when leaving the screen
-    DisposableEffect(Unit) {
-        onDispose {
-            cameraProvider?.unbindAll()
-        }
-    }
 
     AndroidView(
         factory = { ctx ->
@@ -98,8 +90,7 @@ fun CameraPreview(
             val barcodeScanner = BarcodeScanning.getClient()
 
             cameraProviderFuture.addListener({
-                val provider = cameraProviderFuture.get()
-                cameraProvider = provider
+                val cameraProvider = cameraProviderFuture.get()
                 val preview = Preview.Builder().build().also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
@@ -125,8 +116,8 @@ fun CameraPreview(
                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
                 try {
-                    cameraProvider?.unbindAll()
-                    cameraProvider?.bindToLifecycle(
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(
                         lifecycleOwner,
                         cameraSelector,
                         preview,

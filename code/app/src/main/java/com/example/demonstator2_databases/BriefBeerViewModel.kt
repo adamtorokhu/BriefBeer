@@ -142,10 +142,8 @@ data class BriefBeerUiState(
     val breweries: List<BreweryListItem> = emptyList(),
     val filteredBreweries: List<BreweryListItem> = emptyList(),
     val favorites: List<BreweryListItem> = emptyList(),
-    val userAddedBreweries: List<BreweryListItem> = emptyList(),
     val breweryListSelectedBrewery: BreweryDetail? = null, // Selected brewery from Breweries page
     val favoritesSelectedBrewery: BreweryDetail? = null, // Selected brewery from Favorites page
-    val profileSelectedBrewery: BreweryDetail? = null, // Selected brewery from Profile page
     val searchQuery: String = "",
     val selectedTypeFilter: String? = null,
     val isLoading: Boolean = false,
@@ -223,8 +221,6 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
             loadAustrianBreweries()
             // Then load all breweries (including the Austrian ones we just added)
             loadBreweries()
-            // Load user-added breweries for the profile page
-            loadUserAddedBreweries()
         }
     }
 
@@ -396,31 +392,6 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                 } else {
                     _uiState.value = _uiState.value.copy(isLoading = false)
                 }
-            }
-        }
-    }
-
-    private fun loadUserAddedBreweries() {
-        viewModelScope.launch {
-            try {
-                val allBreweries = breweryDao.getAll()
-                val userAdded = allBreweries
-                    .filter { it.id.startsWith("MilosCodesBetterThanAdam<3_") }
-                    .map { entity ->
-                        BreweryListItem(
-                            id = entity.id,
-                            name = entity.name,
-                            breweryType = entity.breweryType ?: "",
-                            city = entity.city ?: "",
-                            state = entity.state ?: "",
-                            country = entity.country ?: ""
-                        )
-                    }
-                    .sortedByDescending { it.id } // Most recent first
-                
-                _uiState.value = _uiState.value.copy(userAddedBreweries = userAdded)
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
     }
@@ -659,7 +630,6 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     _uiState.value = when (parentRoute) {
                         "brewery_list" -> _uiState.value.copy(breweryListSelectedBrewery = detail)
                         "favorites" -> _uiState.value.copy(favoritesSelectedBrewery = detail)
-                        "profile" -> _uiState.value.copy(profileSelectedBrewery = detail)
                         else -> _uiState.value
                     }
                     return@launch
@@ -716,7 +686,6 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                 _uiState.value = when (parentRoute) {
                     "brewery_list" -> _uiState.value.copy(breweryListSelectedBrewery = detail)
                     "favorites" -> _uiState.value.copy(favoritesSelectedBrewery = detail)
-                    "profile" -> _uiState.value.copy(profileSelectedBrewery = detail)
                     else -> _uiState.value
                 }
             } catch (e: Exception) {
@@ -747,7 +716,6 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     _uiState.value = when (parentRoute) {
                         "brewery_list" -> _uiState.value.copy(breweryListSelectedBrewery = detail)
                         "favorites" -> _uiState.value.copy(favoritesSelectedBrewery = detail)
-                        "profile" -> _uiState.value.copy(profileSelectedBrewery = detail)
                         else -> _uiState.value
                     }
                 }
@@ -759,11 +727,9 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.value = when (parentRoute) {
             "brewery_list" -> _uiState.value.copy(breweryListSelectedBrewery = null)
             "favorites" -> _uiState.value.copy(favoritesSelectedBrewery = null)
-            "profile" -> _uiState.value.copy(profileSelectedBrewery = null)
             else -> _uiState.value.copy(
                 breweryListSelectedBrewery = null,
-                favoritesSelectedBrewery = null,
-                profileSelectedBrewery = null
+                favoritesSelectedBrewery = null
             )
         }
     }
@@ -885,7 +851,6 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     addBreweryPrefill = null
                 )
                 applyFilters()
-                loadUserAddedBreweries()
             } catch (e: Exception) {
                 //Error Handling(TODO)
             }
@@ -1061,7 +1026,6 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     showDeleteDialog = false
                 )
                 applyFilters()
-                loadUserAddedBreweries()
                 
                 // Call the completion callback to navigate back
                 onComplete()
