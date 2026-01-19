@@ -189,7 +189,6 @@ fun BriefBeerApp(viewModel: BriefBeerViewModel) {
 fun BriefBeerBottomBar(navController: NavHostController, viewModel: BriefBeerViewModel, uiState: BriefBeerUiState) {
     val items = listOf(
         BriefBeerDestination.BreweryList,
-        BriefBeerDestination.Favorites,
         BriefBeerDestination.Profile
     )
     NavigationBar(
@@ -321,25 +320,6 @@ fun BriefBeerNavHost(
                 onScanBarcode = { navController.navigate(BriefBeerDestination.BarcodeScanner.route) }
             )
         }
-        composable(BriefBeerDestination.Favorites.route) {
-            // If there's a selected brewery from this page, navigate to detail view
-            LaunchedEffect(uiState.favoritesSelectedBrewery) {
-                if (uiState.favoritesSelectedBrewery != null) {
-                    navController.navigate(BriefBeerDestination.BreweryDetail.route) {
-                        launchSingleTop = true
-                    }
-                }
-            }
-            
-            FavoritesScreen(
-                uiState = uiState,
-                onBreweryClick = {
-                    viewModel.selectBrewery(it, BriefBeerDestination.Favorites.route)
-                    navController.navigate(BriefBeerDestination.BreweryDetail.route)
-                },
-                onToggleFavorite = viewModel::toggleFavorite
-            )
-        }
         composable(BriefBeerDestination.Profile.route) {
             // If there's a selected brewery from this page, navigate to detail view
             LaunchedEffect(uiState.profileSelectedBrewery) {
@@ -364,13 +344,11 @@ fun BriefBeerNavHost(
             val previousRoute = navController.previousBackStackEntry?.destination?.route
             val parentRoute = when (previousRoute) {
                 BriefBeerDestination.BreweryList.route -> BriefBeerDestination.BreweryList.route
-                BriefBeerDestination.Favorites.route -> BriefBeerDestination.Favorites.route
                 BriefBeerDestination.Profile.route -> BriefBeerDestination.Profile.route
                 else -> BriefBeerDestination.BreweryList.route
             }
             
             val selectedBrewery = when (parentRoute) {
-                BriefBeerDestination.Favorites.route -> uiState.favoritesSelectedBrewery
                 BriefBeerDestination.Profile.route -> uiState.profileSelectedBrewery
                 else -> uiState.breweryListSelectedBrewery
             }
@@ -520,17 +498,26 @@ fun ProfileScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         Text(
-            text = "My Breweries",
+            text = "My Profile",
             fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 32.dp)
+        )
+        
+        // User Added Breweries Section
+        Text(
+            text = "Breweries I've Added",
+            fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 8.dp)
         )
         
         Text(
-            text = "Breweries you've added",
+            text = "${uiState.userAddedBreweries.size} ${if (uiState.userAddedBreweries.size == 1) "brewery" else "breweries"}",
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(bottom = 16.dp)
@@ -539,30 +526,24 @@ fun ProfileScreen(
         if (uiState.userAddedBreweries.isEmpty()) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Person,
+                        imageVector = Icons.Default.Add,
                         contentDescription = null,
-                        modifier = Modifier.size(64.dp),
+                        modifier = Modifier.size(56.dp),
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                     )
                     Text(
                         text = "No breweries added yet",
                         fontSize = 16.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "Add your first brewery from the Breweries tab",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                         textAlign = TextAlign.Center
                     )
                 }
@@ -572,22 +553,103 @@ fun ProfileScreen(
                 uiState.favorites.map { it.id }.toSet()
             }
             
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(uiState.userAddedBreweries) { brewery ->
-                    BreweryCard(
-                        brewery = brewery,
-                        onClick = { onBreweryClick(brewery.id) },
-                        onToggleFavorite = { onToggleFavorite(brewery) },
-                        isFavorite = favoriteIds.contains(brewery.id)
-                    )
+            // Display breweries in a grid layout without nested scrolling
+            uiState.userAddedBreweries.chunked(2).forEach { rowBreweries ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    rowBreweries.forEach { brewery ->
+                        Box(modifier = Modifier.weight(1f)) {
+                            BreweryCard(
+                                brewery = brewery,
+                                onClick = { onBreweryClick(brewery.id) },
+                                onToggleFavorite = { onToggleFavorite(brewery) },
+                                isFavorite = favoriteIds.contains(brewery.id)
+                            )
+                        }
+                    }
+                    // Add empty space if odd number of items
+                    if (rowBreweries.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
             }
         }
+        
+        Spacer(modifier = Modifier.height(48.dp))
+        
+        // Favorites Section
+        Text(
+            text = "My Favorites",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
+        Text(
+            text = "${uiState.favorites.size} ${if (uiState.favorites.size == 1) "favorite" else "favorites"}",
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        if (uiState.favorites.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FavoriteBorder,
+                        contentDescription = null,
+                        modifier = Modifier.size(56.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    )
+                    Text(
+                        text = "No favorites yet",
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            // Display favorites in a grid layout without nested scrolling
+            uiState.favorites.filter { it.id.isNotEmpty() && it.name.isNotEmpty() }.chunked(2).forEach { rowBreweries ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    rowBreweries.forEach { brewery ->
+                        Box(modifier = Modifier.weight(1f)) {
+                            BreweryCard(
+                                brewery = brewery,
+                                onClick = { onBreweryClick(brewery.id) },
+                                onToggleFavorite = { onToggleFavorite(brewery) },
+                                isFavorite = true
+                            )
+                        }
+                    }
+                    // Add empty space if odd number of items
+                    if (rowBreweries.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+        
+        // Add bottom padding to ensure content doesn't get cut off
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
