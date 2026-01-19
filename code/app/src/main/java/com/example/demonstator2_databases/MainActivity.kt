@@ -1,10 +1,15 @@
 package com.example.demonstator2_databases
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -14,19 +19,30 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -41,6 +57,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.example.demonstator2_databases.ui.theme.Demonstator2databasesTheme
+
+// Helper function to build Google Maps URL from coordinates
+fun buildGoogleMapsUrl(latitude: String, longitude: String): String {
+    return "https://www.google.com/maps?q=$latitude,$longitude"
+}
 
 class MainActivity : ComponentActivity() {
     private val viewModel: BriefBeerViewModel by viewModels()
@@ -58,7 +79,9 @@ class MainActivity : ComponentActivity() {
 sealed class BriefBeerDestination(val route: String, val label: String) {
     data object BreweryList : BriefBeerDestination("brewery_list", "Breweries")
     data object Favorites : BriefBeerDestination("favorites", "Favorites")
+    data object Profile : BriefBeerDestination("profile", "Profile")
     data object BreweryDetail : BriefBeerDestination("brewery_detail", "Brewery")
+    data object BarcodeScanner : BriefBeerDestination("barcode_scanner", "Scan")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,10 +89,44 @@ sealed class BriefBeerDestination(val route: String, val label: String) {
 fun BriefBeerApp(viewModel: BriefBeerViewModel) {
     val navController = rememberNavController()
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.message, uiState.messageActionLabel) {
+        val msg = uiState.message ?: return@LaunchedEffect
+        val actionLabel = uiState.messageActionLabel
+        val action = uiState.messageAction
+        val result = snackbarHostState.showSnackbar(
+            message = msg,
+            actionLabel = actionLabel
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            // If user tapped "Add" from the scanner flow, first navigate back to Breweries,
+            // then open the Add dialog.
+            if (action == UiMessageAction.ADD_BREWERY_FROM_SCAN) {
+                // Prefer popping the scanner off the back stack so we truly return to the list.
+                val popped = navController.popBackStack(
+                    route = BriefBeerDestination.BreweryList.route,
+                    inclusive = false
+                )
+                if (!popped) {
+                    navController.navigate(BriefBeerDestination.BreweryList.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            }
+            viewModel.performMessageAction()
+        }
+        viewModel.clearMessage()
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
-            BriefBeerBottomBar(navController)
+            BriefBeerBottomBar(navController, viewModel, uiState)
         },
         topBar = {
             TopAppBar(
@@ -80,6 +137,10 @@ fun BriefBeerApp(viewModel: BriefBeerViewModel) {
                         textAlign = TextAlign.Center
                     )
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                ),
                 navigationIcon = {
                     val backStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = backStackEntry?.destination?.route
@@ -87,6 +148,25 @@ fun BriefBeerApp(viewModel: BriefBeerViewModel) {
                         IconButton(onClick = {
                             viewModel.clearSelectedBrewery()
                             navController.popBackStack()
+                        }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        }
+                    } else if (currentDestination == BriefBeerDestination.BarcodeScanner.route) {
+                        IconButton(onClick = {
+                            // Remove the scanner screen and return to the breweries list
+                            val popped = navController.popBackStack(
+                                route = BriefBeerDestination.BreweryList.route,
+                                inclusive = false
+                            )
+                            if (!popped) {
+                                navController.navigate(BriefBeerDestination.BreweryList.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
                         }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                         }
@@ -106,33 +186,99 @@ fun BriefBeerApp(viewModel: BriefBeerViewModel) {
 }
 
 @Composable
-fun BriefBeerBottomBar(navController: NavHostController) {
+fun BriefBeerBottomBar(navController: NavHostController, viewModel: BriefBeerViewModel, uiState: BriefBeerUiState) {
     val items = listOf(
         BriefBeerDestination.BreweryList,
-        BriefBeerDestination.Favorites
+        BriefBeerDestination.Favorites,
+        BriefBeerDestination.Profile
     )
-    NavigationBar {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.primary
+    ) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentDestination = navBackStackEntry?.destination
+        val currentRoute = currentDestination?.route
+        
+        // Determine which parent tab should be highlighted
+        val activeRoute = if (currentRoute == BriefBeerDestination.BreweryDetail.route) {
+            // If on detail page, find the parent route from backstack
+            navController.previousBackStackEntry?.destination?.route
+        } else {
+            currentRoute
+        }
+        
         items.forEach { screen ->
-            val selected = currentDestination?.route == screen.route
+            val selected = activeRoute == screen.route
             NavigationBarItem(
                 icon = {
-                    if (screen == BriefBeerDestination.BreweryList) {
-                        Icon(Icons.Default.List, contentDescription = screen.label)
-                    } else {
-                        Icon(Icons.Default.Favorite, contentDescription = screen.label)
+                    when (screen) {
+                        BriefBeerDestination.BreweryList -> Icon(Icons.Default.List, contentDescription = screen.label)
+                        BriefBeerDestination.Favorites -> Icon(Icons.Default.Favorite, contentDescription = screen.label)
+                        BriefBeerDestination.Profile -> Icon(Icons.Default.Person, contentDescription = screen.label)
+                        else -> Icon(Icons.Default.List, contentDescription = screen.label)
                     }
                 },
                 label = { Text(screen.label) },
                 selected = selected,
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = Color.White,
+                    unselectedIconColor = Color.White.copy(alpha = 0.7f),
+                    selectedTextColor = Color.White,
+                    unselectedTextColor = Color.White.copy(alpha = 0.7f)
+                ),
                 onClick = {
-                    navController.navigate(screen.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
+                    val currentRoute = currentDestination?.route
+                    
+                    when {
+                        // If on detail view, navigate to the selected screen
+                        currentRoute == BriefBeerDestination.BreweryDetail.route -> {
+                            val previousRoute = navController.previousBackStackEntry?.destination?.route
+                            // If clicking the same page that opened the detail, just pop back
+                            if (screen.route == previousRoute) {
+                                viewModel.clearSelectedBrewery(screen.route)
+                                navController.popBackStack()
+                            } else {
+                                // Navigate to different page, keeping the state
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        inclusive = false
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
                         }
-                        launchSingleTop = true
-                        restoreState = true
+                        // If on BarcodeScanner, remove it completely and navigate to selected screen
+                        currentRoute == BriefBeerDestination.BarcodeScanner.route -> {
+                            // If navigating to start destination (Breweries), just pop back
+                            if (screen.route == navController.graph.findStartDestination().route) {
+                                navController.popBackStack()
+                            } else {
+                                // Navigate to other screens (like Favorites)
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        inclusive = false
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        }
+                        // Default navigation between main screens
+                        else -> {
+                            if (currentRoute != screen.route) {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        inclusive = false
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        }
                     }
                 }
             )
@@ -151,36 +297,134 @@ fun BriefBeerNavHost(
         startDestination = BriefBeerDestination.BreweryList.route
     ) {
         composable(BriefBeerDestination.BreweryList.route) {
+            // If there's a selected brewery from this page, navigate to detail view
+            LaunchedEffect(uiState.breweryListSelectedBrewery) {
+                if (uiState.breweryListSelectedBrewery != null) {
+                    navController.navigate(BriefBeerDestination.BreweryDetail.route) {
+                        launchSingleTop = true
+                    }
+                }
+            }
+            
             BreweryListScreen(
                 uiState = uiState,
                 onSearchChange = viewModel::onSearchQueryChange,
                 onTypeChange = viewModel::onTypeFilterChange,
                 onBreweryClick = {
-                    viewModel.selectBrewery(it)
+                    viewModel.selectBrewery(it, BriefBeerDestination.BreweryList.route)
+                    navController.navigate(BriefBeerDestination.BreweryDetail.route)
+                },
+                onToggleFavorite = viewModel::toggleFavorite,
+                onAddBrewery = viewModel::addBrewery,
+                onShowAddDialog = viewModel::showAddBreweryDialog,
+                onHideAddDialog = viewModel::hideAddBreweryDialog,
+                onScanBarcode = { navController.navigate(BriefBeerDestination.BarcodeScanner.route) }
+            )
+        }
+        composable(BriefBeerDestination.Favorites.route) {
+            // If there's a selected brewery from this page, navigate to detail view
+            LaunchedEffect(uiState.favoritesSelectedBrewery) {
+                if (uiState.favoritesSelectedBrewery != null) {
+                    navController.navigate(BriefBeerDestination.BreweryDetail.route) {
+                        launchSingleTop = true
+                    }
+                }
+            }
+            
+            FavoritesScreen(
+                uiState = uiState,
+                onBreweryClick = {
+                    viewModel.selectBrewery(it, BriefBeerDestination.Favorites.route)
                     navController.navigate(BriefBeerDestination.BreweryDetail.route)
                 },
                 onToggleFavorite = viewModel::toggleFavorite
             )
         }
-        composable(BriefBeerDestination.Favorites.route) {
-            FavoritesScreen(
+        composable(BriefBeerDestination.Profile.route) {
+            // If there's a selected brewery from this page, navigate to detail view
+            LaunchedEffect(uiState.profileSelectedBrewery) {
+                if (uiState.profileSelectedBrewery != null) {
+                    navController.navigate(BriefBeerDestination.BreweryDetail.route) {
+                        launchSingleTop = true
+                    }
+                }
+            }
+            
+            ProfileScreen(
                 uiState = uiState,
                 onBreweryClick = {
-                    viewModel.selectBrewery(it)
+                    viewModel.selectBrewery(it, BriefBeerDestination.Profile.route)
                     navController.navigate(BriefBeerDestination.BreweryDetail.route)
                 },
                 onToggleFavorite = viewModel::toggleFavorite
             )
         }
         composable(BriefBeerDestination.BreweryDetail.route) {
-            val isFavorite = uiState.selectedBrewery?.let { brewery ->
+            // Determine which page we came from by checking backstack
+            val previousRoute = navController.previousBackStackEntry?.destination?.route
+            val parentRoute = when (previousRoute) {
+                BriefBeerDestination.BreweryList.route -> BriefBeerDestination.BreweryList.route
+                BriefBeerDestination.Favorites.route -> BriefBeerDestination.Favorites.route
+                BriefBeerDestination.Profile.route -> BriefBeerDestination.Profile.route
+                else -> BriefBeerDestination.BreweryList.route
+            }
+            
+            val selectedBrewery = when (parentRoute) {
+                BriefBeerDestination.Favorites.route -> uiState.favoritesSelectedBrewery
+                BriefBeerDestination.Profile.route -> uiState.profileSelectedBrewery
+                else -> uiState.breweryListSelectedBrewery
+            }
+            
+            // Handle back button to clear selected brewery and navigate back
+            BackHandler {
+                viewModel.clearSelectedBrewery(parentRoute)
+                navController.popBackStack()
+            }
+            
+            val isFavorite = selectedBrewery?.let { brewery ->
                 uiState.favorites.any { it.id == brewery.id }
             } ?: false
+            
+            // Check if the brewery is editable (custom brewery)
+            val isEditable = selectedBrewery?.id?.startsWith("MilosCodesBetterThanAdam<3_") == true
+            
+            if (uiState.showEditBreweryDialog && uiState.breweryToEdit != null) {
+                EditBreweryDialog(
+                    brewery = uiState.breweryToEdit,
+                    onDismiss = viewModel::hideEditBreweryDialog,
+                    onUpdateBrewery = viewModel::updateBrewery
+                )
+            }
+            
+            if (uiState.showDeleteDialog && selectedBrewery != null) {
+                DeleteBreweryDialog(
+                    breweryName = selectedBrewery.name,
+                    onDismiss = viewModel::hideDeleteDialog,
+                    onConfirmDelete = {
+                        viewModel.deleteBrewery(selectedBrewery.id) {
+                            navController.popBackStack()
+                        }
+                    }
+                )
+            }
+            
             BreweryDetailScreen(
-                detail = uiState.selectedBrewery,
+                detail = selectedBrewery,
                 isFavorite = isFavorite,
+                isEditable = isEditable,
                 onToggleFavorite = { item ->
                     viewModel.toggleFavorite(item)
+                },
+                onEditBrewery = viewModel::showEditBreweryDialog,
+                onDeleteBrewery = viewModel::showDeleteDialog
+            )
+        }
+        composable(BriefBeerDestination.BarcodeScanner.route) {
+            BarcodeScannerScreen(
+                onBarcodeScanned = { barcode ->
+                    viewModel.searchByBarcode(barcode)
+                    // Navigate back to breweries after scanning
+                    navController.popBackStack()
                 }
             )
         }
@@ -193,13 +437,25 @@ fun BreweryListScreen(
     onSearchChange: (String) -> Unit,
     onTypeChange: (String?) -> Unit,
     onBreweryClick: (String) -> Unit,
-    onToggleFavorite: (BreweryListItem) -> Unit
+    onToggleFavorite: (BreweryListItem) -> Unit,
+    onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?) -> Unit,
+    onShowAddDialog: () -> Unit,
+    onHideAddDialog: () -> Unit,
+    onScanBarcode: () -> Unit
 ) {
     val types = remember(uiState.breweries) {
         uiState.breweries.map { it.breweryType }.distinct().filter { it.isNotEmpty() }.sorted()
     }
     val favoriteIds = remember(uiState.favorites) {
         uiState.favorites.map { it.id }.toSet()
+    }
+    
+    if (uiState.showAddBreweryDialog) {
+        AddBreweryDialog(
+            onDismiss = onHideAddDialog,
+            onAddBrewery = onAddBrewery,
+            prefill = uiState.addBreweryPrefill
+        )
     }
     
     if (uiState.isLoading) {
@@ -210,17 +466,33 @@ fun BreweryListScreen(
             CircularProgressIndicator()
         }
     } else {
-        BreweryGridContent(
-            breweries = uiState.filteredBreweries.ifEmpty { uiState.breweries },
-            searchQuery = uiState.searchQuery,
-            onSearchChange = onSearchChange,
-            types = types,
-            selectedType = uiState.selectedTypeFilter,
-            onTypeChange = onTypeChange,
-            onBreweryClick = onBreweryClick,
-            onToggleFavorite = onToggleFavorite,
-            favoriteIds = favoriteIds
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            BreweryGridContent(
+                breweries = uiState.filteredBreweries,
+        searchQuery = uiState.searchQuery,
+        onSearchChange = onSearchChange,
+                types = types,
+                selectedType = uiState.selectedTypeFilter,
+                onTypeChange = onTypeChange,
+                onBreweryClick = onBreweryClick,
+        onToggleFavorite = onToggleFavorite,
+        favoriteIds = favoriteIds,
+        onScanBarcode = onScanBarcode
+    )
+            
+            FloatingActionButton(
+                onClick = onShowAddDialog,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Brewery"
+                )
+            }
+        }
     }
 }
 
@@ -240,10 +512,93 @@ fun FavoritesScreen(
 }
 
 @Composable
+fun ProfileScreen(
+    uiState: BriefBeerUiState,
+    onBreweryClick: (String) -> Unit,
+    onToggleFavorite: (BreweryListItem) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "My Breweries",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
+        Text(
+            text = "Breweries you've added",
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        if (uiState.userAddedBreweries.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    )
+                    Text(
+                        text = "No breweries added yet",
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "Add your first brewery from the Breweries tab",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            val favoriteIds = remember(uiState.favorites) {
+                uiState.favorites.map { it.id }.toSet()
+            }
+            
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(uiState.userAddedBreweries) { brewery ->
+                    BreweryCard(
+                        brewery = brewery,
+                        onClick = { onBreweryClick(brewery.id) },
+                        onToggleFavorite = { onToggleFavorite(brewery) },
+                        isFavorite = favoriteIds.contains(brewery.id)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun BreweryDetailScreen(
     detail: BreweryDetail?,
     isFavorite: Boolean = false,
-    onToggleFavorite: (BreweryListItem) -> Unit
+    isEditable: Boolean = false,
+    onToggleFavorite: (BreweryListItem) -> Unit,
+    onEditBrewery: () -> Unit = {},
+    onDeleteBrewery: () -> Unit = {}
 ) {
     if (detail == null) {
         Box(
@@ -263,6 +618,7 @@ fun BreweryDetailScreen(
     BreweryDetailContent(
         detail = detail,
         isFavorite = isFavorite,
+        isEditable = isEditable,
         onToggleFavorite = {
             onToggleFavorite(
                 BreweryListItem(
@@ -274,7 +630,9 @@ fun BreweryDetailScreen(
                     country = detail.country ?: ""
                 )
             )
-        }
+        },
+        onEditBrewery = onEditBrewery,
+        onDeleteBrewery = onDeleteBrewery
     )
 }
 
@@ -289,7 +647,8 @@ fun BreweryGridContent(
     onTypeChange: (String?) -> Unit,
     onBreweryClick: (String) -> Unit,
     onToggleFavorite: (BreweryListItem) -> Unit,
-    favoriteIds: Set<String> = emptySet()
+    favoriteIds: Set<String> = emptySet(),
+    onScanBarcode: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -303,15 +662,31 @@ fun BreweryGridContent(
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchChange,
-            label = { Text("Search breweries") },
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 12.dp),
-            singleLine = true
-        )
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                label = { Text("Search breweries") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+
+            FilledTonalIconButton(
+                onClick = onScanBarcode,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Scan barcode"
+                )
+            }
+        }
         
         Row(
             modifier = Modifier
@@ -323,13 +698,25 @@ fun BreweryGridContent(
             FilterChip(
                 selected = selectedType == null,
                 onClick = { onTypeChange(null) },
-                label = { Text("All") }
+                label = { Text("All") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = Color.White,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             )
             types.forEach { type ->
                 FilterChip(
                     selected = selectedType == type,
                     onClick = { onTypeChange(type) },
-                    label = { Text(type.replaceFirstChar { it.uppercase() }) }
+                    label = { Text(type.replaceFirstChar { it.uppercase() }) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = Color.White,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
             }
         }
@@ -381,10 +768,8 @@ fun BreweryCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = brewery.name.take(2).uppercase(),
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        text = "🍻",
+                        fontSize = 48.sp
                     )
                 }
                 
@@ -401,9 +786,25 @@ fun BreweryCard(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (brewery.country.isNotEmpty() && brewery.city.isNotEmpty()) {
+                    if (brewery.city.isNotEmpty() && brewery.country.isNotEmpty()) {
                         Text(
-                            text = "${brewery.country}, ${brewery.city}",
+                            text = "${brewery.city}, ${brewery.country}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    } else if (brewery.city.isNotEmpty()) {
+                        Text(
+                            text = brewery.city,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    } else if (brewery.country.isNotEmpty()) {
+                        Text(
+                            text = brewery.country,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             maxLines = 1,
@@ -493,7 +894,10 @@ fun BreweryFavoritesContent(
 fun BreweryDetailContent(
     detail: BreweryDetail,
     isFavorite: Boolean = false,
-    onToggleFavorite: () -> Unit
+    isEditable: Boolean = false,
+    onToggleFavorite: () -> Unit,
+    onEditBrewery: () -> Unit = {},
+    onDeleteBrewery: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -508,10 +912,8 @@ fun BreweryDetailContent(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = detail.name.take(2).uppercase(),
-                fontSize = 64.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                text = "🍻",
+                fontSize = 80.sp
             )
         }
         
@@ -536,14 +938,42 @@ fun BreweryDetailContent(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         if (detail.breweryType.isNotEmpty()) {
-                            Text(
+                        Text(
                                 text = detail.breweryType.replaceFirstChar { it.uppercase() },
-                                fontSize = 18.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
                     }
+                    }
+                    
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (isEditable) {
+                            FloatingActionButton(
+                                onClick = onDeleteBrewery,
+                                modifier = Modifier.size(56.dp),
+                                containerColor = MaterialTheme.colorScheme.error
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete Brewery"
+                                )
+                            }
+                            
+                            FloatingActionButton(
+                                onClick = onEditBrewery,
+                                modifier = Modifier.size(56.dp),
+                                containerColor = MaterialTheme.colorScheme.secondary
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Brewery"
+                                )
+                            }
+                        }
                     
                     FloatingActionButton(
                         onClick = onToggleFavorite,
@@ -554,6 +984,7 @@ fun BreweryDetailContent(
                             imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Favorite"
                         )
+                        }
                     }
                 }
                 
@@ -577,9 +1008,9 @@ fun BreweryDetailContent(
                         modifier = Modifier.padding(16.dp)
                     ) {
                         if (!detail.street.isNullOrEmpty()) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
                                     .padding(vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -606,8 +1037,8 @@ fun BreweryDetailContent(
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
+                        ) {
+                            Text(
                                     text = "Address 1",
                                     fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -615,7 +1046,7 @@ fun BreweryDetailContent(
                                 Text(
                                     text = detail.address1,
                                     fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
+                                fontWeight = FontWeight.Medium,
                                     modifier = Modifier.weight(1f),
                                     textAlign = androidx.compose.ui.text.style.TextAlign.End
                                 )
@@ -732,9 +1163,9 @@ fun BreweryDetailContent(
                                     text = detail.countyProvince,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium
-                                )
-                            }
+                            )
                         }
+                    }
                         if (!detail.stateProvince.isNullOrEmpty()) {
                             if (!detail.street.isNullOrEmpty() || !detail.address1.isNullOrEmpty() || !detail.address2.isNullOrEmpty() || !detail.address3.isNullOrEmpty() || !detail.city.isNullOrEmpty() || !detail.state.isNullOrEmpty() || !detail.countyProvince.isNullOrEmpty()) {
                                 Divider(modifier = Modifier.padding(vertical = 4.dp))
@@ -829,7 +1260,7 @@ fun BreweryDetailContent(
                                         .padding(vertical = 8.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text(
+                Text(
                                         text = "Latitude",
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -863,6 +1294,35 @@ fun BreweryDetailContent(
                                     )
                                 }
                             }
+                            
+                            // Add Google Maps link button if both coordinates are available
+                            if (!detail.latitude.isNullOrEmpty() && !detail.longitude.isNullOrEmpty()) {
+                                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                                val context = LocalContext.current
+                                Button(
+                                    onClick = {
+                                        val lat = detail.latitude
+                                        val lng = detail.longitude
+                                        val url = buildGoogleMapsUrl(lat, lng)
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                        context.startActivity(intent)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.LocationOn,
+                                        contentDescription = "Location",
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Open in Google Maps")
+                                }
+                            }
                         }
                     }
                 }
@@ -870,44 +1330,44 @@ fun BreweryDetailContent(
                 if (!detail.phone.isNullOrEmpty() || !detail.websiteUrl.isNullOrEmpty()) {
                     Text(
                         text = "Contact",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 24.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                        shape = RoundedCornerShape(12.dp)
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
                             if (!detail.phone.isNullOrEmpty()) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
                                         text = "Phone",
-                                        fontSize = 14.sp,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
-                                    Text(
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
                                         text = detail.phone,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                             }
                             if (!detail.websiteUrl.isNullOrEmpty()) {
                                 if (!detail.phone.isNullOrEmpty()) {
-                                    Divider(modifier = Modifier.padding(vertical = 4.dp))
-                                }
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -933,19 +1393,19 @@ fun BreweryDetailContent(
                 }
                 
                 if (!detail.createdAt.isNullOrEmpty() || !detail.updatedAt.isNullOrEmpty()) {
-                    Text(
+                Text(
                         text = "Metadata",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 24.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                        shape = RoundedCornerShape(12.dp)
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp)
@@ -956,8 +1416,8 @@ fun BreweryDetailContent(
                                         .fillMaxWidth()
                                         .padding(vertical = 8.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
+                ) {
+                    Text(
                                         text = "Created At",
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -997,4 +1457,851 @@ fun BreweryDetailContent(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddBreweryDialog(
+    onDismiss: () -> Unit,
+    onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?) -> Unit,
+    prefill: AddBreweryPrefill? = null
+) {
+    var name by remember(prefill) { mutableStateOf(prefill?.name ?: "") }
+    var breweryType by remember(prefill) { mutableStateOf(prefill?.breweryType ?: "") }
+    var city by remember(prefill) { mutableStateOf(prefill?.city ?: "") }
+    var country by remember(prefill) { mutableStateOf(prefill?.country ?: "") }
+    var state by remember(prefill) { mutableStateOf(prefill?.state ?: "") }
+    var street by remember { mutableStateOf("") }
+    var postalCode by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var websiteUrl by remember { mutableStateOf("") }
+
+    val breweryTypes = listOf("micro", "nano", "regional", "brewpub", "large", "planning", "bar", "contract", "proprietor", "closed")
+
+    val countries = listOf(
+        "🇦🇫 Afghanistan",
+        "🇦🇱 Albania",
+        "🇩🇿 Algeria",
+        "🇦🇩 Andorra",
+        "🇦🇴 Angola",
+        "🇦🇬 Antigua and Barbuda",
+        "🇦🇷 Argentina",
+        "🇦🇲 Armenia",
+        "🇦🇺 Australia",
+        "🇦🇹 Austria",
+        "🇦🇿 Azerbaijan",
+        "🇧🇸 Bahamas",
+        "🇧🇭 Bahrain",
+        "🇧🇩 Bangladesh",
+        "🇧🇧 Barbados",
+        "🇧🇾 Belarus",
+        "🇧🇪 Belgium",
+        "🇧🇿 Belize",
+        "🇧🇯 Benin",
+        "🇧🇹 Bhutan",
+        "🇧🇴 Bolivia",
+        "🇧🇦 Bosnia and Herzegovina",
+        "🇧🇼 Botswana",
+        "🇧🇷 Brazil",
+        "🇧🇳 Brunei",
+        "🇧🇬 Bulgaria",
+        "🇧🇫 Burkina Faso",
+        "🇧🇮 Burundi",
+        "🇨🇻 Cabo Verde",
+        "🇰🇭 Cambodia",
+        "🇨🇲 Cameroon",
+        "🇨🇦 Canada",
+        "🇨🇫 Central African Republic",
+        "🇹🇩 Chad",
+        "🇨🇱 Chile",
+        "🇨🇳 China",
+        "🇨🇴 Colombia",
+        "🇰🇲 Comoros",
+        "🇨🇬 Congo",
+        "🇨🇩 Congo (Democratic Republic)",
+        "🇨🇷 Costa Rica",
+        "🇨🇮 Côte d’Ivoire",
+        "🇭🇷 Croatia",
+        "🇨🇺 Cuba",
+        "🇨🇾 Cyprus",
+        "🇨🇿 Czech Republic",
+        "🇩🇰 Denmark",
+        "🇩🇯 Djibouti",
+        "🇩🇲 Dominica",
+        "🇩🇴 Dominican Republic",
+        "🇪🇨 Ecuador",
+        "🇪🇬 Egypt",
+        "🇸🇻 El Salvador",
+        "🇬🇶 Equatorial Guinea",
+        "🇪🇷 Eritrea",
+        "🇪🇪 Estonia",
+        "🇸🇿 Eswatini",
+        "🇪🇹 Ethiopia",
+        "🇫🇯 Fiji",
+        "🇫🇮 Finland",
+        "🇫🇷 France",
+        "🇬🇦 Gabon",
+        "🇬🇲 Gambia",
+        "🇬🇪 Georgia",
+        "🇩🇪 Germany",
+        "🇬🇭 Ghana",
+        "🇬🇷 Greece",
+        "🇬🇩 Grenada",
+        "🇬🇹 Guatemala",
+        "🇬🇳 Guinea",
+        "🇬🇼 Guinea-Bissau",
+        "🇬🇾 Guyana",
+        "🇭🇹 Haiti",
+        "🇭🇳 Honduras",
+        "🇭🇺 Hungary",
+        "🇮🇸 Iceland",
+        "🇮🇳 India",
+        "🇮🇩 Indonesia",
+        "🇮🇷 Iran",
+        "🇮🇶 Iraq",
+        "🇮🇪 Ireland",
+        "🇮🇱 Israel",
+        "🇮🇹 Italy",
+        "🇯🇲 Jamaica",
+        "🇯🇵 Japan",
+        "🇯🇴 Jordan",
+        "🇰🇿 Kazakhstan",
+        "🇰🇪 Kenya",
+        "🇰🇮 Kiribati",
+        "🇰🇼 Kuwait",
+        "🇰🇬 Kyrgyzstan",
+        "🇱🇦 Laos",
+        "🇱🇻 Latvia",
+        "🇱🇧 Lebanon",
+        "🇱🇸 Lesotho",
+        "🇱🇷 Liberia",
+        "🇱🇾 Libya",
+        "🇱🇮 Liechtenstein",
+        "🇱🇹 Lithuania",
+        "🇱🇺 Luxembourg",
+        "🇲🇬 Madagascar",
+        "🇲🇼 Malawi",
+        "🇲🇾 Malaysia",
+        "🇲🇻 Maldives",
+        "🇲🇱 Mali",
+        "🇲🇹 Malta",
+        "🇲🇭 Marshall Islands",
+        "🇲🇷 Mauritania",
+        "🇲🇺 Mauritius",
+        "🇲🇽 Mexico",
+        "🇫🇲 Micronesia",
+        "🇲🇩 Moldova",
+        "🇲🇨 Monaco",
+        "🇲🇳 Mongolia",
+        "🇲🇪 Montenegro",
+        "🇲🇦 Morocco",
+        "🇲🇿 Mozambique",
+        "🇲🇲 Myanmar",
+        "🇳🇦 Namibia",
+        "🇳🇷 Nauru",
+        "🇳🇵 Nepal",
+        "🇳🇱 Netherlands",
+        "🇳🇿 New Zealand",
+        "🇳🇮 Nicaragua",
+        "🇳🇪 Niger",
+        "🇳🇬 Nigeria",
+        "🇰🇵 North Korea",
+        "🇲🇰 North Macedonia",
+        "🇳🇴 Norway",
+        "🇴🇲 Oman",
+        "🇵🇰 Pakistan",
+        "🇵🇼 Palau",
+        "🇵🇸 Palestine",
+        "🇵🇦 Panama",
+        "🇵🇬 Papua New Guinea",
+        "🇵🇾 Paraguay",
+        "🇵🇪 Peru",
+        "🇵🇭 Philippines",
+        "🇵🇱 Poland",
+        "🇵🇹 Portugal",
+        "🇶🇦 Qatar",
+        "🇷🇴 Romania",
+        "🇷🇺 Russia",
+        "🇷🇼 Rwanda",
+        "🇰🇳 Saint Kitts and Nevis",
+        "🇱🇨 Saint Lucia",
+        "🇻🇨 Saint Vincent and the Grenadines",
+        "🇼🇸 Samoa",
+        "🇸🇲 San Marino",
+        "🇸🇹 São Tomé and Príncipe",
+        "🇸🇦 Saudi Arabia",
+        "🇸🇳 Senegal",
+        "🇷🇸 Serbia",
+        "🇸🇨 Seychelles",
+        "🇸🇱 Sierra Leone",
+        "🇸🇬 Singapore",
+        "🇸🇰 Slovakia",
+        "🇸🇮 Slovenia",
+        "🇸🇧 Solomon Islands",
+        "🇸🇴 Somalia",
+        "🇿🇦 South Africa",
+        "🇰🇷 South Korea",
+        "🇸🇸 South Sudan",
+        "🇪🇸 Spain",
+        "🇱🇰 Sri Lanka",
+        "🇸🇩 Sudan",
+        "🇸🇷 Suriname",
+        "🇸🇪 Sweden",
+        "🇨🇭 Switzerland",
+        "🇸🇾 Syria",
+        "🇹🇯 Tajikistan",
+        "🇹🇿 Tanzania",
+        "🇹🇭 Thailand",
+        "🇹🇱 Timor-Leste",
+        "🇹🇬 Togo",
+        "🇹🇴 Tonga",
+        "🇹🇹 Trinidad and Tobago",
+        "🇹🇳 Tunisia",
+        "🇹🇷 Turkey",
+        "🇹🇲 Turkmenistan",
+        "🇹🇻 Tuvalu",
+        "🇺🇬 Uganda",
+        "🇺🇦 Ukraine",
+        "🇦🇪 United Arab Emirates",
+        "🇬🇧 United Kingdom",
+        "🇺🇸 United States",
+        "🇺🇾 Uruguay",
+        "🇺🇿 Uzbekistan",
+        "🇻🇺 Vanuatu",
+        "🇻🇦 Vatican City",
+        "🇻🇪 Venezuela",
+        "🇻🇳 Vietnam",
+        "🇾🇪 Yemen",
+        "🇿🇲 Zambia",
+        "🇿🇼 Zimbabwe"
+    )
+
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Add New Brewery",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val scannedQr = prefill?.qr
+                if (!scannedQr.isNullOrBlank()) {
+                    Text(
+                        text = "Scanned barcode: $scannedQr",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                var breweryTypeExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = breweryTypeExpanded,
+                    onExpandedChange = { breweryTypeExpanded = !breweryTypeExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = breweryType,
+                        onValueChange = { },
+                        label = { Text("Brewery Type *") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        readOnly = true,
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = breweryTypeExpanded)
+                        }
+                    )
+                    ExposedDropdownMenu(
+                        expanded = breweryTypeExpanded,
+                        onDismissRequest = { breweryTypeExpanded = false }
+                    ) {
+                        breweryTypes.forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text(type.replaceFirstChar { it.uppercase() }) },
+                                onClick = {
+                                    breweryType = type
+                                    breweryTypeExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                OutlinedTextField(
+                    value = city,
+                    onValueChange = { city = it },
+                    label = { Text("City *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                var countryExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = countryExpanded,
+                    onExpandedChange = { countryExpanded = !countryExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = country,
+                        onValueChange = { },
+                        label = { Text("Country *") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        readOnly = true,
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = countryExpanded)
+                        }
+                    )
+                    ExposedDropdownMenu(
+                        expanded = countryExpanded,
+                        onDismissRequest = { countryExpanded = false }
+                    ) {
+                        countries.forEach { countryName ->
+                            DropdownMenuItem(
+                                text = { Text(countryName) },
+                                onClick = {
+                                    country = countryName
+                                    countryExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                OutlinedTextField(
+                    value = state,
+                    onValueChange = { state = it },
+                    label = { Text("State/Province") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                OutlinedTextField(
+                    value = street,
+                    onValueChange = { street = it },
+                    label = { Text("Street Address") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                OutlinedTextField(
+                    value = postalCode,
+                    onValueChange = { postalCode = it },
+                    label = { Text("Postal Code") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Phone") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                OutlinedTextField(
+                    value = websiteUrl,
+                    onValueChange = { websiteUrl = it },
+                    label = { Text("Website URL") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotEmpty() && breweryType.isNotEmpty() && city.isNotEmpty() && country.isNotEmpty()) {
+                        onAddBrewery(
+                            name,
+                            breweryType,
+                            city,
+                            country,
+                            state,
+                            street.takeIf { it.isNotEmpty() },
+                            postalCode.takeIf { it.isNotEmpty() },
+                            phone.takeIf { it.isNotEmpty() },
+                            websiteUrl.takeIf { it.isNotEmpty() }
+                        )
+                        // Reset fields
+                        name = ""
+                        breweryType = ""
+                        city = ""
+                        country = ""
+                        state = ""
+                        street = ""
+                        postalCode = ""
+                        phone = ""
+                        websiteUrl = ""
+                    }
+                },
+                enabled = name.isNotEmpty() && breweryType.isNotEmpty() && city.isNotEmpty() && country.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("Add Brewery")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditBreweryDialog(
+    brewery: BreweryDetail,
+    onDismiss: () -> Unit,
+    onUpdateBrewery: (String, String, String, String, String, String, String?, String?, String?, String?) -> Unit
+) {
+    var name by remember { mutableStateOf(brewery.name) }
+    var breweryType by remember { mutableStateOf(brewery.breweryType) }
+    var city by remember { mutableStateOf(brewery.city ?: "") }
+    var country by remember { mutableStateOf(brewery.country ?: "") }
+    var state by remember { mutableStateOf(brewery.state ?: "") }
+    var street by remember { mutableStateOf(brewery.street ?: "") }
+    var postalCode by remember { mutableStateOf(brewery.postalCode ?: "") }
+    var phone by remember { mutableStateOf(brewery.phone ?: "") }
+    var websiteUrl by remember { mutableStateOf(brewery.websiteUrl ?: "") }
+
+    val breweryTypes = listOf("micro", "nano", "regional", "brewpub", "large", "planning", "bar", "contract", "proprietor", "closed")
+
+    val countries = listOf(
+        "🇦🇫 Afghanistan",
+        "🇦🇱 Albania",
+        "🇩🇿 Algeria",
+        "🇦🇩 Andorra",
+        "🇦🇴 Angola",
+        "🇦🇬 Antigua and Barbuda",
+        "🇦🇷 Argentina",
+        "🇦🇲 Armenia",
+        "🇦🇺 Australia",
+        "🇦🇹 Austria",
+        "🇦🇿 Azerbaijan",
+        "🇧🇸 Bahamas",
+        "🇧🇭 Bahrain",
+        "🇧🇩 Bangladesh",
+        "🇧🇧 Barbados",
+        "🇧🇾 Belarus",
+        "🇧🇪 Belgium",
+        "🇧🇿 Belize",
+        "🇧🇯 Benin",
+        "🇧🇹 Bhutan",
+        "🇧🇴 Bolivia",
+        "🇧🇦 Bosnia and Herzegovina",
+        "🇧🇼 Botswana",
+        "🇧🇷 Brazil",
+        "🇧🇳 Brunei",
+        "🇧🇬 Bulgaria",
+        "🇧🇫 Burkina Faso",
+        "🇧🇮 Burundi",
+        "🇰🇭 Cambodia",
+        "🇨🇲 Cameroon",
+        "🇨🇦 Canada",
+        "🇨🇻 Cape Verde",
+        "🇨🇫 Central African Republic",
+        "🇹🇩 Chad",
+        "🇨🇱 Chile",
+        "🇨🇳 China",
+        "🇨🇴 Colombia",
+        "🇰🇲 Comoros",
+        "🇨🇬 Congo",
+        "🇨🇷 Costa Rica",
+        "🇭🇷 Croatia",
+        "🇨🇺 Cuba",
+        "🇨🇾 Cyprus",
+        "🇨🇿 Czech Republic",
+        "🇩🇰 Denmark",
+        "🇩🇯 Djibouti",
+        "🇩🇲 Dominica",
+        "🇩🇴 Dominican Republic",
+        "🇪🇨 Ecuador",
+        "🇪🇬 Egypt",
+        "🇸🇻 El Salvador",
+        "🇬🇶 Equatorial Guinea",
+        "🇪🇷 Eritrea",
+        "🇪🇪 Estonia",
+        "🇪🇹 Ethiopia",
+        "🇫🇯 Fiji",
+        "🇫🇮 Finland",
+        "🇫🇷 France",
+        "🇬🇦 Gabon",
+        "🇬🇲 Gambia",
+        "🇬🇪 Georgia",
+        "🇩🇪 Germany",
+        "🇬🇭 Ghana",
+        "🇬🇷 Greece",
+        "🇬🇩 Grenada",
+        "🇬🇹 Guatemala",
+        "🇬🇳 Guinea",
+        "🇬🇼 Guinea-Bissau",
+        "🇬🇾 Guyana",
+        "🇭🇹 Haiti",
+        "🇭🇳 Honduras",
+        "🇭🇺 Hungary",
+        "🇮🇸 Iceland",
+        "🇮🇳 India",
+        "🇮🇩 Indonesia",
+        "🇮🇷 Iran",
+        "🇮🇶 Iraq",
+        "🇮🇪 Ireland",
+        "🇮🇱 Israel",
+        "🇮🇹 Italy",
+        "🇯🇲 Jamaica",
+        "🇯🇵 Japan",
+        "🇯🇴 Jordan",
+        "🇰🇿 Kazakhstan",
+        "🇰🇪 Kenya",
+        "🇰🇮 Kiribati",
+        "🇰🇵 Korea North",
+        "🇰🇷 Korea South",
+        "🇰🇼 Kuwait",
+        "🇰🇬 Kyrgyzstan",
+        "🇱🇦 Laos",
+        "🇱🇻 Latvia",
+        "🇱🇧 Lebanon",
+        "🇱🇸 Lesotho",
+        "🇱🇷 Liberia",
+        "🇱🇾 Libya",
+        "🇱🇮 Liechtenstein",
+        "🇱🇹 Lithuania",
+        "🇱🇺 Luxembourg",
+        "🇲🇰 Macedonia",
+        "🇲🇬 Madagascar",
+        "🇲🇼 Malawi",
+        "🇲🇾 Malaysia",
+        "🇲🇻 Maldives",
+        "🇲🇱 Mali",
+        "🇲🇹 Malta",
+        "🇲🇭 Marshall Islands",
+        "🇲🇷 Mauritania",
+        "🇲🇺 Mauritius",
+        "🇲🇽 Mexico",
+        "🇫🇲 Micronesia",
+        "🇲🇩 Moldova",
+        "🇲🇨 Monaco",
+        "🇲🇳 Mongolia",
+        "🇲🇪 Montenegro",
+        "🇲🇦 Morocco",
+        "🇲🇿 Mozambique",
+        "🇲🇲 Myanmar",
+        "🇳🇦 Namibia",
+        "🇳🇷 Nauru",
+        "🇳🇵 Nepal",
+        "🇳🇱 Netherlands",
+        "🇳🇿 New Zealand",
+        "🇳🇮 Nicaragua",
+        "🇳🇪 Niger",
+        "🇳🇬 Nigeria",
+        "🇳🇴 Norway",
+        "🇴🇲 Oman",
+        "🇵🇰 Pakistan",
+        "🇵🇼 Palau",
+        "🇵🇦 Panama",
+        "🇵🇬 Papua New Guinea",
+        "🇵🇾 Paraguay",
+        "🇵🇪 Peru",
+        "🇵🇭 Philippines",
+        "🇵🇱 Poland",
+        "🇵🇹 Portugal",
+        "🇶🇦 Qatar",
+        "🇷🇴 Romania",
+        "🇷🇺 Russia",
+        "🇷🇼 Rwanda",
+        "🇰🇳 Saint Kitts and Nevis",
+        "🇱🇨 Saint Lucia",
+        "🇻🇨 Saint Vincent",
+        "🇼🇸 Samoa",
+        "🇸🇲 San Marino",
+        "🇸🇹 Sao Tome",
+        "🇸🇦 Saudi Arabia",
+        "🇸🇳 Senegal",
+        "🇷🇸 Serbia",
+        "🇸🇨 Seychelles",
+        "🇸🇱 Sierra Leone",
+        "🇸🇬 Singapore",
+        "🇸🇰 Slovakia",
+        "🇸🇮 Slovenia",
+        "🇸🇧 Solomon Islands",
+        "🇸🇴 Somalia",
+        "🇿🇦 South Africa",
+        "🇸🇸 South Sudan",
+        "🇪🇸 Spain",
+        "🇱🇰 Sri Lanka",
+        "🇸🇩 Sudan",
+        "🇸🇷 Suriname",
+        "🇸🇿 Swaziland",
+        "🇸🇪 Sweden",
+        "🇨🇭 Switzerland",
+        "🇸🇾 Syria",
+        "🇹🇼 Taiwan",
+        "🇹🇯 Tajikistan",
+        "🇹🇿 Tanzania",
+        "🇹🇭 Thailand",
+        "🇹🇱 Timor-Leste",
+        "🇹🇬 Togo",
+        "🇹🇴 Tonga",
+        "🇹🇹 Trinidad and Tobago",
+        "🇹🇳 Tunisia",
+        "🇹🇷 Turkey",
+        "🇹🇲 Turkmenistan",
+        "🇹🇻 Tuvalu",
+        "🇺🇬 Uganda",
+        "🇺🇦 Ukraine",
+        "🇦🇪 United Arab Emirates",
+        "🇬🇧 United Kingdom",
+        "🇺🇸 United States",
+        "🇺🇾 Uruguay",
+        "🇺🇿 Uzbekistan",
+        "🇻🇺 Vanuatu",
+        "🇻🇦 Vatican City",
+        "🇻🇪 Venezuela",
+        "🇻🇳 Vietnam",
+        "🇾🇪 Yemen",
+        "🇿🇲 Zambia",
+        "🇿🇼 Zimbabwe"
+    )
+
+    var expandedBreweryType by remember { mutableStateOf(false) }
+    var expandedCountry by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Edit Brewery",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = expandedBreweryType,
+                    onExpandedChange = { expandedBreweryType = !expandedBreweryType }
+                ) {
+                    OutlinedTextField(
+                        value = breweryType,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Brewery Type *") },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Dropdown"
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        singleLine = true
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedBreweryType,
+                        onDismissRequest = { expandedBreweryType = false }
+                    ) {
+                        breweryTypes.forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text(type) },
+                                onClick = {
+                                    breweryType = type
+                                    expandedBreweryType = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = city,
+                    onValueChange = { city = it },
+                    label = { Text("City *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = expandedCountry,
+                    onExpandedChange = { expandedCountry = !expandedCountry }
+                ) {
+                    OutlinedTextField(
+                        value = country,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Country *") },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Dropdown"
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        singleLine = true
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedCountry,
+                        onDismissRequest = { expandedCountry = false }
+                    ) {
+                        countries.forEach { countryOption ->
+                            DropdownMenuItem(
+                                text = { Text(countryOption) },
+                                onClick = {
+                                    country = countryOption
+                                    expandedCountry = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = state,
+                    onValueChange = { state = it },
+                    label = { Text("State/Province") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = street,
+                    onValueChange = { street = it },
+                    label = { Text("Street Address") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = postalCode,
+                    onValueChange = { postalCode = it },
+                    label = { Text("Postal Code") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Phone") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = websiteUrl,
+                    onValueChange = { websiteUrl = it },
+                    label = { Text("Website URL") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotEmpty() && breweryType.isNotEmpty() && city.isNotEmpty() && country.isNotEmpty()) {
+                        onUpdateBrewery(
+                            brewery.id,
+                            name,
+                            breweryType,
+                            city,
+                            country,
+                            state,
+                            street.takeIf { it.isNotEmpty() },
+                            postalCode.takeIf { it.isNotEmpty() },
+                            phone.takeIf { it.isNotEmpty() },
+                            websiteUrl.takeIf { it.isNotEmpty() }
+                        )
+                    }
+                },
+                enabled = name.isNotEmpty() && breweryType.isNotEmpty() && city.isNotEmpty() && country.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("Update Brewery")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun DeleteBreweryDialog(
+    breweryName: String,
+    onDismiss: () -> Unit,
+    onConfirmDelete: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Delete Brewery",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Text(
+                text = "Are you sure you want to delete \"$breweryName\"? This action cannot be undone.",
+                fontSize = 16.sp
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirmDelete,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
