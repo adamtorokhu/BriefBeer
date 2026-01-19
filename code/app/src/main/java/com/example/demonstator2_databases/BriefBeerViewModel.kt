@@ -806,7 +806,9 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun showEditBreweryDialog() {
-        val brewery = _uiState.value.breweryListSelectedBrewery ?: _uiState.value.favoritesSelectedBrewery
+        val brewery = _uiState.value.breweryListSelectedBrewery
+            ?: _uiState.value.favoritesSelectedBrewery
+            ?: _uiState.value.profileSelectedBrewery
         _uiState.value = _uiState.value.copy(
             showEditBreweryDialog = true,
             breweryToEdit = brewery
@@ -930,9 +932,9 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         createdAt = existingBrewery.createdAt,
                         qr = existingBrewery.qr
                     )
-                    
+
                     breweryDao.insert(updatedEntity)
-                    
+
                     // Update in favorites if it's favorited
                     val isFavorite = favoritesRepository.isFavorite(id)
                     if (isFavorite) {
@@ -947,7 +949,7 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                             )
                         )
                     }
-                    
+
                     // Update the brewery in the list
                     val updatedBreweries = _uiState.value.breweries.map { brewery ->
                         if (brewery.id == id) {
@@ -963,7 +965,7 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                             brewery
                         }
                     }.sortedBy { it.name }
-                    
+
                     // Update selected brewery if it's the one being edited
                     val updatedDetail = BreweryDetail(
                         id = id,
@@ -986,27 +988,35 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         updatedAt = existingBrewery.updatedAt,
                         createdAt = existingBrewery.createdAt
                     )
-                    
+
                     val updatedBreweryListSelected = if (_uiState.value.breweryListSelectedBrewery?.id == id) {
                         updatedDetail
                     } else {
                         _uiState.value.breweryListSelectedBrewery
                     }
-                    
+
                     val updatedFavoritesSelected = if (_uiState.value.favoritesSelectedBrewery?.id == id) {
                         updatedDetail
                     } else {
                         _uiState.value.favoritesSelectedBrewery
                     }
-                    
+
+                    val updatedProfileSelected = if (_uiState.value.profileSelectedBrewery?.id == id) {
+                        updatedDetail
+                    } else {
+                        _uiState.value.profileSelectedBrewery
+                    }
+
                     _uiState.value = _uiState.value.copy(
                         breweries = updatedBreweries,
                         breweryListSelectedBrewery = updatedBreweryListSelected,
                         favoritesSelectedBrewery = updatedFavoritesSelected,
+                        profileSelectedBrewery = updatedProfileSelected,
                         showEditBreweryDialog = false,
                         breweryToEdit = null
                     )
                     applyFilters()
+                    loadUserAddedBreweries()
                 }
             } catch (e: Exception) {
                 //Error Handling(TODO)
