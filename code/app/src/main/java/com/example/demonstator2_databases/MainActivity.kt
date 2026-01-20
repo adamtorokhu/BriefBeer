@@ -10,12 +10,14 @@ import androidx.activity.viewModels
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -332,6 +334,10 @@ fun BriefBeerNavHost(
             
             ProfileScreen(
                 uiState = uiState,
+                onUserNameChange = viewModel::setProfileUserName,
+                onOpenAvatarPicker = viewModel::showAvatarPicker,
+                onCloseAvatarPicker = viewModel::hideAvatarPicker,
+                onAvatarSelected = viewModel::setProfileAvatar,
                 onBreweryClick = {
                     viewModel.selectBrewery(it, BriefBeerDestination.Profile.route)
                     navController.navigate(BriefBeerDestination.BreweryDetail.route)
@@ -492,21 +498,77 @@ fun FavoritesScreen(
 @Composable
 fun ProfileScreen(
     uiState: BriefBeerUiState,
+    onUserNameChange: (String) -> Unit,
+    onOpenAvatarPicker: () -> Unit,
+    onCloseAvatarPicker: () -> Unit,
+    onAvatarSelected: (String) -> Unit,
     onBreweryClick: (String) -> Unit,
     onToggleFavorite: (BreweryListItem) -> Unit
 ) {
+    if (uiState.showAvatarPicker) {
+        AvatarPickerDialog(
+            onDismiss = onCloseAvatarPicker,
+            onAvatarSelected = onAvatarSelected
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        Text(
-            text = "My Profile",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 32.dp)
-        )
+        // Profile picture + greeting
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                AsyncImage(
+                    model = "file:///android_asset/${uiState.profileAvatarAssetPath}",
+                    contentDescription = "Profile picture",
+                    modifier = Modifier
+                        .size(104.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .clickable { onOpenAvatarPicker() },
+                    contentScale = ContentScale.Crop
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Hello",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = uiState.profileUserName,
+                    onValueChange = onUserNameChange,
+                    label = { Text("Username") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "Tap the picture to change it",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         
         // User Added Breweries Section
         Text(
@@ -651,6 +713,62 @@ fun ProfileScreen(
         // Add bottom padding to ensure content doesn't get cut off
         Spacer(modifier = Modifier.height(16.dp))
     }
+}
+
+@Composable
+fun AvatarPickerDialog(
+    onDismiss: () -> Unit,
+    onAvatarSelected: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val avatars = remember {
+        val files = try {
+            context.assets.list("avatars")?.toList().orEmpty()
+        } catch (_: Exception) {
+            emptyList()
+        }
+        files
+            .filter { it.lowercase().endsWith(".png") || it.lowercase().endsWith(".webp") || it.lowercase().endsWith(".jpg") || it.lowercase().endsWith(".jpeg") }
+            .sorted()
+            .map { "avatars/$it" }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        },
+        title = { Text("Choose profile picture") },
+        text = {
+            if (avatars.isEmpty()) {
+                Text(
+                    text = "No images found in assets/avatars",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(avatars) { assetPath ->
+                        AsyncImage(
+                            model = "file:///android_asset/$assetPath",
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(CircleShape)
+                                .clickable { onAvatarSelected(assetPath) },
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
+            }
+        }
+    )
 }
 
 @Composable

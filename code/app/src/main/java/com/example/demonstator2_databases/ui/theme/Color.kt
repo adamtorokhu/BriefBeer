@@ -15,6 +15,10 @@ val BeerBackground = Color(0xFFFFF4E6) // Warm beige background (like light beer
 val BeerCard = Color(0xFFFFE0B2) // Light golden card color (like pale ale)
 val BeerDark = Color(0xFF8B4513) // Dark beer brown for text on light backgrounds
 
+// Higher-contrast text colors (especially for light mode readability)
+val BeerText = Color(0xFF1F130A) // Very dark brown/near-black
+val BeerTextMuted = Color(0xFF4E2E18) // Muted dark brown
+
 // Legacy colors for compatibility (mapped to orange)
 val Purple80 = OrangeSecondary
 val PurpleGrey80 = Color(0xFFE8E8E8)

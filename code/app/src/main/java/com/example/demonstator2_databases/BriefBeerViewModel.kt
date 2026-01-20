@@ -1,6 +1,7 @@
 package com.example.demonstator2_databases
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.demonstator2_databases.data.FavoriteBreweryRepository
@@ -157,7 +158,13 @@ data class BriefBeerUiState(
     val messageActionLabel: String? = null,
     val messageAction: UiMessageAction? = null,
     // When we want to open Add Brewery from a scan, we store the suggested values here.
-    val addBreweryPrefill: AddBreweryPrefill? = null
+    val addBreweryPrefill: AddBreweryPrefill? = null,
+
+    // Profile
+    val profileUserName: String = "Beer Lover",
+    // Path relative to /assets, e.g. "avatars/corona.png"
+    val profileAvatarAssetPath: String = "avatars/corona.png",
+    val showAvatarPicker: Boolean = false
 )
 
 enum class UiMessageAction {
@@ -174,6 +181,7 @@ data class AddBreweryPrefill(
 )
 
 class BriefBeerViewModel(application: Application) : AndroidViewModel(application) {
+    private val prefs = application.getSharedPreferences("briefbeer_prefs", Context.MODE_PRIVATE)
 
     private val api: OpenBreweryApiService = Retrofit.Builder()
         .baseUrl(OPEN_BREWERY_DB_BASE_URL)
@@ -197,6 +205,20 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         val db = BriefBeerDatabase.getDatabase(application)
         favoritesRepository = FavoriteBreweryRepository(db.favoriteBreweryDao())
         breweryDao = db.breweryDao()
+
+        // Load persisted profile settings
+        val savedName = prefs.getString("profile_name", null)
+        val avatarFiles = try {
+            application.assets.list("avatars")?.toList().orEmpty()
+        } catch (_: Exception) {
+            emptyList()
+        }
+        val defaultAvatarPath = avatarFiles.firstOrNull()?.let { "avatars/$it" } ?: "avatars/corona.png"
+        val savedAvatarPath = prefs.getString("profile_avatar_path", null)
+        _uiState.value = _uiState.value.copy(
+            profileUserName = savedName?.takeIf { it.isNotBlank() } ?: "Beer Lover",
+            profileAvatarAssetPath = savedAvatarPath?.takeIf { it.isNotBlank() } ?: defaultAvatarPath
+        )
 
         viewModelScope.launch {
             favoritesRepository.favorites
@@ -225,6 +247,27 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
             // Load user-added breweries for the profile page
             loadUserAddedBreweries()
         }
+    }
+
+    fun setProfileUserName(name: String) {
+        val trimmed = name.trim().take(40)
+        _uiState.value = _uiState.value.copy(profileUserName = trimmed.ifBlank { "Beer Lover" })
+        prefs.edit().putString("profile_name", trimmed).apply()
+    }
+
+    fun showAvatarPicker() {
+        _uiState.value = _uiState.value.copy(showAvatarPicker = true)
+    }
+
+    fun hideAvatarPicker() {
+        _uiState.value = _uiState.value.copy(showAvatarPicker = false)
+    }
+
+    fun setProfileAvatar(assetPath: String) {
+        val normalized = assetPath.trim()
+        if (normalized.isBlank()) return
+        _uiState.value = _uiState.value.copy(profileAvatarAssetPath = normalized, showAvatarPicker = false)
+        prefs.edit().putString("profile_avatar_path", normalized).apply()
     }
 
     private suspend fun loadAustrianBreweries() {

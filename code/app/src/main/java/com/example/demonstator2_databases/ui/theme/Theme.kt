@@ -26,13 +26,14 @@ private val LightColorScheme = lightColorScheme(
     secondary = BeerAmber,
     tertiary = BeerCream,
     background = BeerBackground,
-    surface = BeerCard,
-    surfaceVariant = BeerCream,
+    // Keep things beer-like but readable: slightly lighter surfaces with strong text contrast
+    surface = BeerCream,
+    surfaceVariant = BeerCard,
     onPrimary = Color(0xFFFFFFFF),
     onSecondary = Color(0xFFFFFFFF),
-    onBackground = BeerDark,
-    onSurface = BeerDark,
-    onSurfaceVariant = BeerDark.copy(alpha = 0.7f)
+    onBackground = BeerText,
+    onSurface = BeerText,
+    onSurfaceVariant = BeerTextMuted
 )
 
 @Composable
