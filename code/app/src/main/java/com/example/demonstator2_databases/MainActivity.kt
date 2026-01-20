@@ -79,6 +79,7 @@ class MainActivity : ComponentActivity() {
 sealed class BriefBeerDestination(val route: String, val label: String) {
     data object BreweryList : BriefBeerDestination("brewery_list", "Breweries")
     data object Favorites : BriefBeerDestination("favorites", "Favorites")
+    data object Profile : BriefBeerDestination("profile", "Profile")
     data object BreweryDetail : BriefBeerDestination("brewery_detail", "Brewery")
     data object BarcodeScanner : BriefBeerDestination("barcode_scanner", "Scan")
 }
@@ -188,20 +189,31 @@ fun BriefBeerApp(viewModel: BriefBeerViewModel) {
 fun BriefBeerBottomBar(navController: NavHostController, viewModel: BriefBeerViewModel, uiState: BriefBeerUiState) {
     val items = listOf(
         BriefBeerDestination.BreweryList,
-        BriefBeerDestination.Favorites
+        BriefBeerDestination.Profile
     )
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.primary
     ) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentDestination = navBackStackEntry?.destination
+        val currentRoute = currentDestination?.route
+        
+        // Determine which parent tab should be highlighted
+        val activeRoute = if (currentRoute == BriefBeerDestination.BreweryDetail.route) {
+            // If on detail page, find the parent route from backstack
+            navController.previousBackStackEntry?.destination?.route
+        } else {
+            currentRoute
+        }
+        
         items.forEach { screen ->
-            val selected = currentDestination?.route == screen.route
+            val selected = activeRoute == screen.route
             NavigationBarItem(
                 icon = {
                     when (screen) {
                         BriefBeerDestination.BreweryList -> Icon(Icons.Default.List, contentDescription = screen.label)
                         BriefBeerDestination.Favorites -> Icon(Icons.Default.Favorite, contentDescription = screen.label)
+                        BriefBeerDestination.Profile -> Icon(Icons.Default.Person, contentDescription = screen.label)
                         else -> Icon(Icons.Default.List, contentDescription = screen.label)
                     }
                 },
@@ -308,20 +320,20 @@ fun BriefBeerNavHost(
                 onScanBarcode = { navController.navigate(BriefBeerDestination.BarcodeScanner.route) }
             )
         }
-        composable(BriefBeerDestination.Favorites.route) {
+        composable(BriefBeerDestination.Profile.route) {
             // If there's a selected brewery from this page, navigate to detail view
-            LaunchedEffect(uiState.favoritesSelectedBrewery) {
-                if (uiState.favoritesSelectedBrewery != null) {
+            LaunchedEffect(uiState.profileSelectedBrewery) {
+                if (uiState.profileSelectedBrewery != null) {
                     navController.navigate(BriefBeerDestination.BreweryDetail.route) {
                         launchSingleTop = true
                     }
                 }
             }
             
-            FavoritesScreen(
+            ProfileScreen(
                 uiState = uiState,
                 onBreweryClick = {
-                    viewModel.selectBrewery(it, BriefBeerDestination.Favorites.route)
+                    viewModel.selectBrewery(it, BriefBeerDestination.Profile.route)
                     navController.navigate(BriefBeerDestination.BreweryDetail.route)
                 },
                 onToggleFavorite = viewModel::toggleFavorite
@@ -332,14 +344,13 @@ fun BriefBeerNavHost(
             val previousRoute = navController.previousBackStackEntry?.destination?.route
             val parentRoute = when (previousRoute) {
                 BriefBeerDestination.BreweryList.route -> BriefBeerDestination.BreweryList.route
-                BriefBeerDestination.Favorites.route -> BriefBeerDestination.Favorites.route
+                BriefBeerDestination.Profile.route -> BriefBeerDestination.Profile.route
                 else -> BriefBeerDestination.BreweryList.route
             }
             
-            val selectedBrewery = if (parentRoute == BriefBeerDestination.Favorites.route) {
-                uiState.favoritesSelectedBrewery
-            } else {
-                uiState.breweryListSelectedBrewery
+            val selectedBrewery = when (parentRoute) {
+                BriefBeerDestination.Profile.route -> uiState.profileSelectedBrewery
+                else -> uiState.breweryListSelectedBrewery
             }
             
             // Handle back button to clear selected brewery and navigate back
@@ -390,6 +401,8 @@ fun BriefBeerNavHost(
             BarcodeScannerScreen(
                 onBarcodeScanned = { barcode ->
                     viewModel.searchByBarcode(barcode)
+                    // Navigate back to breweries after scanning
+                    navController.popBackStack()
                 }
             )
         }
@@ -474,6 +487,170 @@ fun FavoritesScreen(
         onBreweryClick = onBreweryClick,
         onToggleFavorite = onToggleFavorite
     )
+}
+
+@Composable
+fun ProfileScreen(
+    uiState: BriefBeerUiState,
+    onBreweryClick: (String) -> Unit,
+    onToggleFavorite: (BreweryListItem) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "My Profile",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 32.dp)
+        )
+        
+        // User Added Breweries Section
+        Text(
+            text = "Breweries I've Added",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
+        Text(
+            text = "${uiState.userAddedBreweries.size} ${if (uiState.userAddedBreweries.size == 1) "brewery" else "breweries"}",
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        if (uiState.userAddedBreweries.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(56.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    )
+                    Text(
+                        text = "No breweries added yet",
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            val favoriteIds = remember(uiState.favorites) {
+                uiState.favorites.map { it.id }.toSet()
+            }
+            
+            // Display breweries in a grid layout without nested scrolling
+            uiState.userAddedBreweries.chunked(2).forEach { rowBreweries ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    rowBreweries.forEach { brewery ->
+                        Box(modifier = Modifier.weight(1f)) {
+                            BreweryCard(
+                                brewery = brewery,
+                                onClick = { onBreweryClick(brewery.id) },
+                                onToggleFavorite = { onToggleFavorite(brewery) },
+                                isFavorite = favoriteIds.contains(brewery.id)
+                            )
+                        }
+                    }
+                    // Add empty space if odd number of items
+                    if (rowBreweries.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(48.dp))
+        
+        // Favorites Section
+        Text(
+            text = "My Favorites",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
+        Text(
+            text = "${uiState.favorites.size} ${if (uiState.favorites.size == 1) "favorite" else "favorites"}",
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        if (uiState.favorites.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FavoriteBorder,
+                        contentDescription = null,
+                        modifier = Modifier.size(56.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    )
+                    Text(
+                        text = "No favorites yet",
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            // Display favorites in a grid layout without nested scrolling
+            uiState.favorites.filter { it.id.isNotEmpty() && it.name.isNotEmpty() }.chunked(2).forEach { rowBreweries ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    rowBreweries.forEach { brewery ->
+                        Box(modifier = Modifier.weight(1f)) {
+                            BreweryCard(
+                                brewery = brewery,
+                                onClick = { onBreweryClick(brewery.id) },
+                                onToggleFavorite = { onToggleFavorite(brewery) },
+                                isFavorite = true
+                            )
+                        }
+                    }
+                    // Add empty space if odd number of items
+                    if (rowBreweries.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+        
+        // Add bottom padding to ensure content doesn't get cut off
+        Spacer(modifier = Modifier.height(16.dp))
+    }
 }
 
 @Composable

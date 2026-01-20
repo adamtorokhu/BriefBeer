@@ -25,5 +25,5 @@ data class BreweryEntity(
     val websiteUrl: String?,
     val updatedAt: String?,
     val createdAt: String?,
-    val qr: String? = null
+    val qr: String?
 )
