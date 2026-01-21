@@ -252,11 +252,10 @@ fun BriefBeerBottomBar(navController: NavHostController, viewModel: BriefBeerVie
                         }
                         // If on BarcodeScanner, remove it completely and navigate to selected screen
                         currentRoute == BriefBeerDestination.BarcodeScanner.route -> {
-                            // If navigating to start destination (Breweries), just pop back
-                            if (screen.route == navController.graph.findStartDestination().route) {
-                                navController.popBackStack()
-                            } else {
-                                // Navigate to other screens (like Favorites)
+                            // Always pop the barcode scanner first, then navigate
+                            navController.popBackStack()
+                            if (screen.route != navController.graph.findStartDestination().route) {
+                                // Navigate to other screens (like Profile)
                                 navController.navigate(screen.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         inclusive = false
@@ -319,7 +318,9 @@ fun BriefBeerNavHost(
                 onAddBrewery = viewModel::addBrewery,
                 onShowAddDialog = viewModel::showAddBreweryDialog,
                 onHideAddDialog = viewModel::hideAddBreweryDialog,
-                onScanBarcode = { navController.navigate(BriefBeerDestination.BarcodeScanner.route) }
+                onScanBarcode = { 
+                    navController.navigate(BriefBeerDestination.BarcodeScanner.route)
+                }
             )
         }
         composable(BriefBeerDestination.Profile.route) {
