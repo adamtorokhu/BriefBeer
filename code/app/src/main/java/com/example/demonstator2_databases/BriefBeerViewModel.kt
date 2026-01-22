@@ -249,10 +249,11 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun setProfileUserName(name: String) {
+    fun saveProfileUserName(name: String) {
         val trimmed = name.trim().take(40)
-        _uiState.value = _uiState.value.copy(profileUserName = trimmed.ifBlank { "Beer Lover" })
-        prefs.edit().putString("profile_name", trimmed).apply()
+        val finalName = if (trimmed.isBlank()) "Beer Lover" else trimmed
+        _uiState.value = _uiState.value.copy(profileUserName = finalName)
+        prefs.edit().putString("profile_name", finalName).apply()
     }
 
     fun showAvatarPicker() {

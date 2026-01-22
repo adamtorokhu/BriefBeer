@@ -41,6 +41,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -336,7 +337,7 @@ fun BriefBeerNavHost(
             
             ProfileScreen(
                 uiState = uiState,
-                onUserNameChange = viewModel::setProfileUserName,
+                onUserNameSave = viewModel::saveProfileUserName,
                 onOpenAvatarPicker = viewModel::showAvatarPicker,
                 onCloseAvatarPicker = viewModel::hideAvatarPicker,
                 onAvatarSelected = viewModel::setProfileAvatar,
@@ -500,17 +501,47 @@ fun FavoritesScreen(
 @Composable
 fun ProfileScreen(
     uiState: BriefBeerUiState,
-    onUserNameChange: (String) -> Unit,
+    onUserNameSave: (String) -> Unit,
     onOpenAvatarPicker: () -> Unit,
     onCloseAvatarPicker: () -> Unit,
     onAvatarSelected: (String) -> Unit,
     onBreweryClick: (String) -> Unit,
     onToggleFavorite: (BreweryListItem) -> Unit
 ) {
+    var showEditNameDialog by rememberSaveable { mutableStateOf(false) }
+    var draftName by rememberSaveable { mutableStateOf(uiState.profileUserName) }
+
     if (uiState.showAvatarPicker) {
         AvatarPickerDialog(
             onDismiss = onCloseAvatarPicker,
             onAvatarSelected = onAvatarSelected
+        )
+    }
+
+    if (showEditNameDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditNameDialog = false },
+            title = { Text("Edit username") },
+            text = {
+                OutlinedTextField(
+                    value = draftName,
+                    onValueChange = { draftName = it.take(40) },
+                    label = { Text("Username") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onUserNameSave(draftName)
+                        showEditNameDialog = false
+                    }
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditNameDialog = false }) { Text("Cancel") }
+            }
         )
     }
 
@@ -554,13 +585,30 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                OutlinedTextField(
-                    value = uiState.profileUserName,
-                    onValueChange = onUserNameChange,
-                    label = { Text("Username") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = uiState.profileUserName,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    FilledTonalIconButton(
+                        onClick = {
+                            draftName = uiState.profileUserName
+                            showEditNameDialog = true
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit username"
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(6.dp))
 
