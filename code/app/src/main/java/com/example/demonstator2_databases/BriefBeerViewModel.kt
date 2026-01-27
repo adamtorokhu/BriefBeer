@@ -2,6 +2,7 @@ package com.example.demonstator2_databases
 
 import android.app.Application
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.demonstator2_databases.data.FavoriteBreweryRepository
@@ -21,6 +22,8 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStreamReader
 
 private const val OPEN_BREWERY_DB_BASE_URL = "https://api.openbrewerydb.org/v1/"
@@ -57,7 +60,8 @@ data class BreweryListItem(
     val breweryType: String,
     val city: String,
     val state: String,
-    val country: String
+    val country: String,
+    val imagePath: String? = null
 )
 
 data class BreweryDetail(
@@ -79,7 +83,8 @@ data class BreweryDetail(
     val phone: String?,
     val websiteUrl: String?,
     val updatedAt: String?,
-    val createdAt: String?
+    val createdAt: String?,
+    val imagePath: String? = null
 )
 
 data class BreweryDto(
@@ -223,14 +228,17 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             favoritesRepository.favorites
                 .map { entities ->
-                    entities.map {
+                    entities.map { favorite ->
+                        // Get the full brewery data to access imagePath
+                        val breweryEntity = breweryDao.getById(favorite.breweryId)
                         BreweryListItem(
-                            id = it.breweryId,
-                            name = it.name,
-                            breweryType = it.breweryType,
-                            city = it.city,
-                            state = it.state,
-                            country = it.country
+                            id = favorite.breweryId,
+                            name = favorite.name,
+                            breweryType = favorite.breweryType,
+                            city = favorite.city,
+                            state = favorite.state,
+                            country = favorite.country,
+                            imagePath = breweryEntity?.imagePath
                         )
                     }
                 }
@@ -335,7 +343,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                             breweryType = entity.breweryType ?: "",
                             city = entity.city ?: "",
                             state = entity.state ?: "",
-                            country = entity.country ?: ""
+                            country = entity.country ?: "",
+                            imagePath = entity.imagePath
                         )
                     }.sortedBy { it.name }
                     _uiState.value = _uiState.value.copy(breweries = breweryList, isLoading = false)
@@ -414,7 +423,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         breweryType = entity.breweryType ?: "",
                         city = entity.city ?: "",
                         state = entity.state ?: "",
-                        country = entity.country ?: ""
+                        country = entity.country ?: "",
+                        imagePath = entity.imagePath
                     )
                 }.sortedBy { it.name }
                 
@@ -456,7 +466,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                             breweryType = entity.breweryType ?: "",
                             city = entity.city ?: "",
                             state = entity.state ?: "",
-                            country = entity.country ?: ""
+                            country = entity.country ?: "",
+                            imagePath = entity.imagePath
                         )
                     }
                     .sortedBy { it.name }
@@ -698,7 +709,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         phone = cachedBrewery.phone,
                         websiteUrl = cachedBrewery.websiteUrl,
                         updatedAt = cachedBrewery.updatedAt,
-                        createdAt = cachedBrewery.createdAt
+                        createdAt = cachedBrewery.createdAt,
+                        imagePath = cachedBrewery.imagePath
                     )
                     _uiState.value = when (parentRoute) {
                         "brewery_list" -> _uiState.value.copy(breweryListSelectedBrewery = detail)
@@ -729,7 +741,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     phone = response.phone,
                     websiteUrl = response.website_url,
                     updatedAt = response.updated_at,
-                    createdAt = response.created_at
+                    createdAt = response.created_at,
+                    imagePath = null
                 )
                 
                 // Store in database for offline access
@@ -753,7 +766,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     websiteUrl = response.website_url,
                     updatedAt = response.updated_at,
                     createdAt = response.created_at,
-                    qr = null
+                    qr = null,
+                    imagePath = null
                 ))
                 
                 _uiState.value = when (parentRoute) {
@@ -784,7 +798,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         phone = cachedBrewery.phone,
                         websiteUrl = cachedBrewery.websiteUrl,
                         updatedAt = cachedBrewery.updatedAt,
-                        createdAt = cachedBrewery.createdAt
+                        createdAt = cachedBrewery.createdAt,
+                        imagePath = cachedBrewery.imagePath
                     )
                     _uiState.value = when (parentRoute) {
                         "brewery_list" -> _uiState.value.copy(breweryListSelectedBrewery = detail)
@@ -877,12 +892,18 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         street: String? = null,
         postalCode: String? = null,
         phone: String? = null,
-        websiteUrl: String? = null
+        websiteUrl: String? = null,
+        imageUri: Uri? = null
     ) {
         viewModelScope.launch {
             try {
                 val newId = "MilosCodesBetterThanAdam<3_${System.currentTimeMillis()}"
                 val qrFromScan = _uiState.value.addBreweryPrefill?.qr
+                
+                // Save image to internal storage if provided
+                val imagePath = imageUri?.let { uri ->
+                    saveImageToInternalStorage(uri, newId)
+                }
                 
                 val breweryEntity = BreweryEntity(
                     id = newId,
@@ -904,7 +925,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     websiteUrl = websiteUrl,
                     updatedAt = null,
                     createdAt = null,
-                    qr = qrFromScan
+                    qr = qrFromScan,
+                    imagePath = imagePath
                 )
                 
                 breweryDao.insert(breweryEntity)
@@ -915,7 +937,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                     breweryType = breweryType,
                     city = city,
                     state = state,
-                    country = country
+                    country = country,
+                    imagePath = imagePath
                 )
                 
                 val updatedBreweries = (_uiState.value.breweries + newBrewery).sortedBy { it.name }
@@ -931,6 +954,31 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
             }
         }
     }
+    
+    private fun saveImageToInternalStorage(uri: Uri, breweryId: String): String? {
+        return try {
+            val context = getApplication<Application>().applicationContext
+            val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+            
+            val imagesDir = File(context.filesDir, "brewery_images")
+            if (!imagesDir.exists()) {
+                imagesDir.mkdirs()
+            }
+            
+            val imageFile = File(imagesDir, "$breweryId.jpg")
+            val outputStream = FileOutputStream(imageFile)
+            
+            inputStream.use { input ->
+                outputStream.use { output ->
+                    input.copyTo(output)
+                }
+            }
+            
+            imageFile.absolutePath
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     fun updateBrewery(
         id: String,
@@ -942,12 +990,26 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         street: String? = null,
         postalCode: String? = null,
         phone: String? = null,
-        websiteUrl: String? = null
+        websiteUrl: String? = null,
+        imageUri: Uri? = null
     ) {
         viewModelScope.launch {
             try {
                 val existingBrewery = breweryDao.getById(id)
                 if (existingBrewery != null) {
+                    // Save new image if provided, otherwise keep existing
+                    val imagePath = imageUri?.let { uri ->
+                        // Delete old image if it exists
+                        existingBrewery.imagePath?.let { oldPath ->
+                            try {
+                                File(oldPath).delete()
+                            } catch (e: Exception) {
+                                // Ignore deletion errors
+                            }
+                        }
+                        saveImageToInternalStorage(uri, id)
+                    } ?: existingBrewery.imagePath
+                    
                     val updatedEntity = BreweryEntity(
                         id = id,
                         name = name,
@@ -968,7 +1030,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         websiteUrl = websiteUrl,
                         updatedAt = existingBrewery.updatedAt,
                         createdAt = existingBrewery.createdAt,
-                        qr = existingBrewery.qr
+                        qr = existingBrewery.qr,
+                        imagePath = imagePath
                     )
                     
                     breweryDao.insert(updatedEntity)
@@ -997,7 +1060,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                                 breweryType = breweryType,
                                 city = city,
                                 state = state,
-                                country = country
+                                country = country,
+                                imagePath = existingBrewery.imagePath
                             )
                         } else {
                             brewery
@@ -1024,7 +1088,8 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
                         phone = phone,
                         websiteUrl = websiteUrl,
                         updatedAt = existingBrewery.updatedAt,
-                        createdAt = existingBrewery.createdAt
+                        createdAt = existingBrewery.createdAt,
+                        imagePath = existingBrewery.imagePath
                     )
                     
                     val updatedBreweryListSelected = if (_uiState.value.breweryListSelectedBrewery?.id == id) {
