@@ -626,6 +626,12 @@ fun ProfileScreen(
             }
         }
         
+        // Streak Calendar Section
+        StreakCalendar(
+            currentStreak = uiState.currentStreak,
+            openedDates = uiState.openedDates
+        )
+        
         // User Added Breweries Section
         Text(
             text = "Breweries I've Added",
@@ -2737,6 +2743,124 @@ fun EditBreweryDialog(
             }
         }
     )
+}
+
+@Composable
+fun StreakCalendar(
+    currentStreak: Int,
+    openedDates: Set<String>
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Streak counter
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$currentStreak day streak",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Calendar view showing current month
+            val today = remember { java.time.LocalDate.now() }
+            val firstDayOfMonth = today.withDayOfMonth(1)
+            val lastDayOfMonth = today.withDayOfMonth(today.lengthOfMonth())
+            val startDayOfWeek = firstDayOfMonth.dayOfWeek.value % 7 // Sunday = 0
+            
+            // Day labels
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
+                    Text(
+                        text = day,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Calendar grid
+            val daysInMonth = lastDayOfMonth.dayOfMonth
+            val totalCells = ((daysInMonth + startDayOfWeek + 6) / 7) * 7
+            
+            Column {
+                for (week in 0 until (totalCells / 7)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        for (dayOfWeek in 0..6) {
+                            val cellIndex = week * 7 + dayOfWeek
+                            val dayOfMonth = cellIndex - startDayOfWeek + 1
+                            
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                                    .padding(2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (dayOfMonth in 1..daysInMonth) {
+                                    val date = firstDayOfMonth.plusDays(dayOfMonth.toLong() - 1)
+                                    val dateStr = date.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                                    val isOpened = openedDates.contains(dateStr)
+                                    val isToday = date == today
+                                    
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                color = when {
+                                                    isOpened && isToday -> MaterialTheme.colorScheme.primary
+                                                    isOpened -> MaterialTheme.colorScheme.primaryContainer
+                                                    isToday -> MaterialTheme.colorScheme.surfaceVariant
+                                                    else -> Color.Transparent
+                                                },
+                                                shape = CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = dayOfMonth.toString(),
+                                            fontSize = 12.sp,
+                                            color = when {
+                                                isOpened && isToday -> MaterialTheme.colorScheme.onPrimary
+                                                isOpened -> MaterialTheme.colorScheme.onPrimaryContainer
+                                                else -> MaterialTheme.colorScheme.onSurface
+                                            },
+                                            fontWeight = if (isOpened) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

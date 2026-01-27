@@ -25,6 +25,9 @@ import com.google.gson.annotations.SerializedName
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStreamReader
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 
 private const val OPEN_BREWERY_DB_BASE_URL = "https://api.openbrewerydb.org/v1/"
 private const val OPEN_FOOD_FACTS_BASE_URL = "https://world.openfoodfacts.org/"
@@ -169,7 +172,11 @@ data class BriefBeerUiState(
     val profileUserName: String = "Beer Lover",
     // Path relative to /assets, e.g. "avatars/corona.png"
     val profileAvatarAssetPath: String = "avatars/corona.png",
-    val showAvatarPicker: Boolean = false
+    val showAvatarPicker: Boolean = false,
+    
+    // Streak tracking
+    val currentStreak: Int = 0,
+    val openedDates: Set<String> = emptySet() // Dates in "yyyy-MM-dd" format
 )
 
 enum class UiMessageAction {
@@ -220,9 +227,15 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         }
         val defaultAvatarPath = avatarFiles.firstOrNull()?.let { "avatars/$it" } ?: "avatars/corona.png"
         val savedAvatarPath = prefs.getString("profile_avatar_path", null)
+        
+        // Initialize and update streak
+        val (streak, dates) = updateStreak()
+        
         _uiState.value = _uiState.value.copy(
             profileUserName = savedName?.takeIf { it.isNotBlank() } ?: "Beer Lover",
-            profileAvatarAssetPath = savedAvatarPath?.takeIf { it.isNotBlank() } ?: defaultAvatarPath
+            profileAvatarAssetPath = savedAvatarPath?.takeIf { it.isNotBlank() } ?: defaultAvatarPath,
+            currentStreak = streak,
+            openedDates = dates
         )
 
         viewModelScope.launch {
@@ -277,6 +290,57 @@ class BriefBeerViewModel(application: Application) : AndroidViewModel(applicatio
         if (normalized.isBlank()) return
         _uiState.value = _uiState.value.copy(profileAvatarAssetPath = normalized, showAvatarPicker = false)
         prefs.edit().putString("profile_avatar_path", normalized).apply()
+    }
+
+    private fun updateStreak(): Pair<Int, Set<String>> {
+        val today = LocalDate.now()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        
+        // Get stored dates (comma-separated string)
+        val storedDatesStr = prefs.getString("opened_dates", "") ?: ""
+        val openedDates = if (storedDatesStr.isBlank()) {
+            mutableSetOf()
+        } else {
+            storedDatesStr.split(",").toMutableSet()
+        }
+        
+        // Add today if not already present
+        val wasAlreadyOpened = openedDates.contains(todayStr)
+        if (!wasAlreadyOpened) {
+            openedDates.add(todayStr)
+            prefs.edit().putString("opened_dates", openedDates.joinToString(",")).apply()
+        }
+        
+        // Calculate current streak
+        val streak = calculateStreak(openedDates, today)
+        
+        return Pair(streak, openedDates)
+    }
+    
+    private fun calculateStreak(openedDates: Set<String>, today: LocalDate): Int {
+        if (openedDates.isEmpty()) return 0
+        
+        // Parse all dates and sort them
+        val dates = openedDates.mapNotNull { dateStr ->
+            try {
+                LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE)
+            } catch (e: Exception) {
+                null
+            }
+        }.sorted()
+        
+        if (dates.isEmpty()) return 0
+        
+        // Start from today and count backwards
+        var currentDate = today
+        var streak = 0
+        
+        while (dates.contains(currentDate)) {
+            streak++
+            currentDate = currentDate.minusDays(1)
+        }
+        
+        return streak
     }
 
     private suspend fun loadAustrianBreweries() {
