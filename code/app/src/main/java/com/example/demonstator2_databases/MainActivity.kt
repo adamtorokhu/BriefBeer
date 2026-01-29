@@ -1,11 +1,16 @@
 package com.example.demonstator2_databases
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
@@ -24,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
@@ -425,7 +431,7 @@ fun BreweryListScreen(
     onTypeChange: (String?) -> Unit,
     onBreweryClick: (String) -> Unit,
     onToggleFavorite: (BreweryListItem) -> Unit,
-    onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?) -> Unit,
+    onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?, Uri?) -> Unit,
     onShowAddDialog: () -> Unit,
     onHideAddDialog: () -> Unit,
     onScanBarcode: () -> Unit
@@ -619,6 +625,12 @@ fun ProfileScreen(
                 )
             }
         }
+        
+        // Streak Calendar Section
+        StreakCalendar(
+            currentStreak = uiState.currentStreak,
+            openedDates = uiState.openedDates
+        )
         
         // User Added Breweries Section
         Text(
@@ -997,10 +1009,20 @@ fun BreweryCard(
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "🍻",
-                        fontSize = 48.sp
-                    )
+                    // Display brewery image if available
+                    if (brewery.imagePath != null) {
+                        AsyncImage(
+                            model = java.io.File(brewery.imagePath),
+                            contentDescription = "Brewery photo",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text(
+                            text = "🍻",
+                            fontSize = 48.sp
+                        )
+                    }
                 }
                 
                 Column(
@@ -1141,10 +1163,20 @@ fun BreweryDetailContent(
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "🍻",
-                fontSize = 80.sp
-            )
+            // Display brewery image if available
+            if (detail.imagePath != null) {
+                AsyncImage(
+                    model = java.io.File(detail.imagePath),
+                    contentDescription = "Brewery photo",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(
+                    text = "🍻",
+                    fontSize = 80.sp
+                )
+            }
         }
         
         Surface(
@@ -1693,7 +1725,7 @@ fun BreweryDetailContent(
 @Composable
 fun AddBreweryDialog(
     onDismiss: () -> Unit,
-    onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?) -> Unit,
+    onAddBrewery: (String, String, String, String, String, String?, String?, String?, String?, Uri?) -> Unit,
     prefill: AddBreweryPrefill? = null
 ) {
     var name by remember(prefill) { mutableStateOf(prefill?.name ?: "") }
@@ -1705,6 +1737,36 @@ fun AddBreweryDialog(
     var postalCode by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var websiteUrl by remember { mutableStateOf("") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+    
+    val context = LocalContext.current
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedImageUri = uri
+    }
+    
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success) {
+            selectedImageUri = tempCameraUri
+        }
+    }
+    
+    fun createImageUri(context: Context): Uri {
+        val tempDir = File(context.cacheDir, "camera_temp")
+        if (!tempDir.exists()) {
+            tempDir.mkdirs()
+        }
+        val imageFile = File(tempDir, "brewery_temp_${System.currentTimeMillis()}.jpg")
+        return FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            imageFile
+        )
+    }
 
     val breweryTypes = listOf("micro", "nano", "regional", "brewpub", "large", "planning", "bar", "contract", "proprietor", "closed")
 
@@ -2052,6 +2114,78 @@ fun AddBreweryDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+                
+                // Image picker section
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Brewery Photo",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { imagePickerLauncher.launch("image/*") },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Select Photo"
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Gallery")
+                    }
+                    
+                    OutlinedButton(
+                        onClick = {
+                            val uri = createImageUri(context)
+                            tempCameraUri = uri
+                            cameraLauncher.launch(uri)
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Take Photo"
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Camera")
+                    }
+                    
+                    if (selectedImageUri != null) {
+                        OutlinedButton(
+                            onClick = { 
+                                selectedImageUri = null
+                                tempCameraUri = null
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Remove Photo"
+                            )
+                        }
+                    }
+                }
+                
+                // Show selected image preview
+                selectedImageUri?.let { uri ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = "Selected brewery photo",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
             }
         },
         confirmButton = {
@@ -2067,7 +2201,8 @@ fun AddBreweryDialog(
                             street.takeIf { it.isNotEmpty() },
                             postalCode.takeIf { it.isNotEmpty() },
                             phone.takeIf { it.isNotEmpty() },
-                            websiteUrl.takeIf { it.isNotEmpty() }
+                            websiteUrl.takeIf { it.isNotEmpty() },
+                            selectedImageUri
                         )
                         // Reset fields
                         name = ""
@@ -2077,6 +2212,9 @@ fun AddBreweryDialog(
                         state = ""
                         street = ""
                         postalCode = ""
+                        phone = ""
+                        websiteUrl = ""
+                        selectedImageUri = null
                         phone = ""
                         websiteUrl = ""
                     }
@@ -2103,7 +2241,7 @@ fun AddBreweryDialog(
 fun EditBreweryDialog(
     brewery: BreweryDetail,
     onDismiss: () -> Unit,
-    onUpdateBrewery: (String, String, String, String, String, String, String?, String?, String?, String?) -> Unit
+    onUpdateBrewery: (String, String, String, String, String, String, String?, String?, String?, String?, Uri?) -> Unit
 ) {
     var name by remember { mutableStateOf(brewery.name) }
     var breweryType by remember { mutableStateOf(brewery.breweryType) }
@@ -2114,6 +2252,39 @@ fun EditBreweryDialog(
     var postalCode by remember { mutableStateOf(brewery.postalCode ?: "") }
     var phone by remember { mutableStateOf(brewery.phone ?: "") }
     var websiteUrl by remember { mutableStateOf(brewery.websiteUrl ?: "") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var keepExistingImage by remember { mutableStateOf(true) }
+    
+    val context = LocalContext.current
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedImageUri = uri
+        if (uri != null) keepExistingImage = false
+    }
+    
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success) {
+            selectedImageUri = tempCameraUri
+            keepExistingImage = false
+        }
+    }
+    
+    fun createImageUri(context: Context): Uri {
+        val tempDir = File(context.cacheDir, "camera_temp")
+        if (!tempDir.exists()) {
+            tempDir.mkdirs()
+        }
+        val imageFile = File(tempDir, "brewery_temp_${System.currentTimeMillis()}.jpg")
+        return FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            imageFile
+        )
+    }
 
     val breweryTypes = listOf("micro", "nano", "regional", "brewpub", "large", "planning", "bar", "contract", "proprietor", "closed")
 
@@ -2459,6 +2630,83 @@ fun EditBreweryDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+                
+                // Image update section
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Brewery Photo",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { imagePickerLauncher.launch("image/*") },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Select Photo"
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Gallery")
+                    }
+                    
+                    OutlinedButton(
+                        onClick = {
+                            val uri = createImageUri(context)
+                            tempCameraUri = uri
+                            cameraLauncher.launch(uri)
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Take Photo"
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Camera")
+                    }
+                    
+                    if (selectedImageUri != null || (brewery.imagePath != null && keepExistingImage)) {
+                        OutlinedButton(
+                            onClick = { 
+                                selectedImageUri = null
+                                tempCameraUri = null
+                                keepExistingImage = false
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Remove Photo"
+                            )
+                        }
+                    }
+                }
+                
+                // Show image preview
+                val imageToShow = selectedImageUri ?: if (keepExistingImage && brewery.imagePath != null) {
+                    brewery.imagePath
+                } else null
+                
+                imageToShow?.let { image ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    AsyncImage(
+                        model = if (image is String) java.io.File(image) else image,
+                        contentDescription = "Brewery photo",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
             }
         },
         confirmButton = {
@@ -2475,7 +2723,8 @@ fun EditBreweryDialog(
                             street.takeIf { it.isNotEmpty() },
                             postalCode.takeIf { it.isNotEmpty() },
                             phone.takeIf { it.isNotEmpty() },
-                            websiteUrl.takeIf { it.isNotEmpty() }
+                            websiteUrl.takeIf { it.isNotEmpty() },
+                            selectedImageUri
                         )
                     }
                 },
@@ -2494,6 +2743,124 @@ fun EditBreweryDialog(
             }
         }
     )
+}
+
+@Composable
+fun StreakCalendar(
+    currentStreak: Int,
+    openedDates: Set<String>
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Streak counter
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$currentStreak day streak",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Calendar view showing current month
+            val today = remember { java.time.LocalDate.now() }
+            val firstDayOfMonth = today.withDayOfMonth(1)
+            val lastDayOfMonth = today.withDayOfMonth(today.lengthOfMonth())
+            val startDayOfWeek = firstDayOfMonth.dayOfWeek.value % 7 // Sunday = 0
+            
+            // Day labels
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
+                    Text(
+                        text = day,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Calendar grid
+            val daysInMonth = lastDayOfMonth.dayOfMonth
+            val totalCells = ((daysInMonth + startDayOfWeek + 6) / 7) * 7
+            
+            Column {
+                for (week in 0 until (totalCells / 7)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        for (dayOfWeek in 0..6) {
+                            val cellIndex = week * 7 + dayOfWeek
+                            val dayOfMonth = cellIndex - startDayOfWeek + 1
+                            
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                                    .padding(2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (dayOfMonth in 1..daysInMonth) {
+                                    val date = firstDayOfMonth.plusDays(dayOfMonth.toLong() - 1)
+                                    val dateStr = date.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                                    val isOpened = openedDates.contains(dateStr)
+                                    val isToday = date == today
+                                    
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                color = when {
+                                                    isOpened && isToday -> MaterialTheme.colorScheme.primary
+                                                    isOpened -> MaterialTheme.colorScheme.primaryContainer
+                                                    isToday -> MaterialTheme.colorScheme.surfaceVariant
+                                                    else -> Color.Transparent
+                                                },
+                                                shape = CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = dayOfMonth.toString(),
+                                            fontSize = 12.sp,
+                                            color = when {
+                                                isOpened && isToday -> MaterialTheme.colorScheme.onPrimary
+                                                isOpened -> MaterialTheme.colorScheme.onPrimaryContainer
+                                                else -> MaterialTheme.colorScheme.onSurface
+                                            },
+                                            fontWeight = if (isOpened) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
