@@ -25,17 +25,31 @@
         </a>
         <a
           class="doc-header__link"
-          href="https://PUT_OUR_PROJECT_USABILITY_LINK_HERE_ADAM"
+          href="BriefBeer Usability Testing Report.pdf"
+          download="BriefBeer_Usability_Report.pdf"
           target="_blank"
           rel="noopener noreferrer"
         >
           <span class="doc-header__link-icon">📋</span>
-          Documentation of the Usability test
+          Download Documentation of the Usability test (pdf)
         </a>
       </nav>
     </div>
 
     <div class="doc-content">
+
+      <div class="doc-section">
+        <h2>Source Code</h2>
+        <a 
+          class="doc-header__link"  
+          href="https://git.nwt.fhstp.ac.at/cc241054/ccl3-ws2025" target="_blank" 
+          rel="noopener noreferrer"
+        >
+        <span class="doc-header__link-icon">📋</span>
+        Go to Git repository
+        </a>
+      </div>
+
       <div class="doc-section">
         <h2>Brief Description</h2>
         <p class="doc-description">
@@ -99,6 +113,12 @@
         </div>
       </div>
 
+      <div class="doc-section">
+        <h2>Full Usability Research Report</h2>
+        <div class="pdf-section">
+            <embed src="BriefBeer Usability Testing Report.pdf" type="application/pdf" width="100%" height="600px" />
+          </div>
+      </div>
 
       <div class="doc-section">
         <h2>Final Reflection</h2>
@@ -136,12 +156,20 @@
           <h3>Adam Török</h3>
         <p>
           <strong>Worked on:</strong><br>
-
+          1. Added austrian beers to db - We looked through all the beer/brewery databases online and couldn't find one that had all we were looking for, so I created a simple js app that fetched all the austrian beers from a different API to a json file and merged that in Kotlin with the OpenBrewery db, that Milos added so at least all the austrian beers are in our db for testing.<br>
+          2. Added barcode scanning feature - I found an API (world.openfoodfacts.org) that can look up the product information from a barcode and implemented the feature that searches in our db for the name of the beer that we scan.<br>
+          3. Added editing/deleting functionality - The breweries/beers the user adds to the db can be edited and deleted later.<br>
+          4. bug fixes - Fixed navigation between pages(very frustrating) and db loading issues.<br>
+          5. Created profile page - From the existing favorites page I made a profile page that has all the beers the user adds and their favorite beers as well.<br>
+          6. Added image upload - Users can upload images to beers/breweries they added to the db.<br>
+          7. Added Streak Calendar - Every time users open the app their calendar shows that and if they open the app every day their streak increases.(Gamification)
         </p>
         <br><br>
         <p>
           <strong>Final reflection:</strong><br>
-
+          I think, Milos and I were a good match for the CCL as we had similar goals and vision about what we wanted to do. The communication between us was really good and we found really quickly how we can devide our workload and what were our individual strengths. We never had merge conflicts which was a positive surprise.
+          <br><br>
+          At the beginning I needed a bit more time to understand the code what we were working on, as it was Milos's codebase. This created some frustrations, when I was trying to fix the navigation for example. Otherwise I have learned a lot about Kotlin even dough it's not my favorite language. Now I feel more comfortable in using APIs and work on a codebase that I didn't create. I figured out a lot of features Kotlin and Google gives to us. I added the barcode scanning feature, it was my favorite thing to work on and I and many of our testers think it's the best feature of our app. In conclusion I really enjoyed working on this project, learning new skills and I'm so proud of it I'm going to put it in my CV.
         </p>
         </div>
       </div>

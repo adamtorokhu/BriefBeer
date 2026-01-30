@@ -536,6 +536,14 @@ body {
   z-index: 1;
 }
 
+.pdf-section {
+  background-color: ffffff;
+  color: #000;
+  padding: 10px 20px;
+  text-decoration: none;
+  border-radius: 5px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .beer-briefed-doc-page {
